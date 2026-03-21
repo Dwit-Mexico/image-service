@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: image-service
-          image: ghcr.io/YOUR_ORG/image-service:latest
+          image: ghcr.io/dwit-mexico/image-service:latest
           ports:
             - containerPort: 8080
           envFrom:
