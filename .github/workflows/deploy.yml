@@ -1,0 +1,96 @@
+name: Deploy Image Service
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        run: |
+          SHA="${GITHUB_SHA::7}"
+          IMAGE="ghcr.io/$(echo "${{ github.repository_owner }}/image-service" | tr '[:upper:]' '[:lower:]')"
+          docker build \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            -t "${IMAGE}:${SHA}" \
+            -t "${IMAGE}:latest" \
+            .
+          docker push "${IMAGE}:${SHA}"
+          docker push "${IMAGE}:latest"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Copy k8s manifests
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "k8s/image-service/,k8s/http-route.yaml,k8s/mtls-gateway.yaml"
+          target: "/tmp/image-service-k8s"
+
+      - name: Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          SHA: ${{ github.sha }}
+          AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+          DEFAULT_CONTAINER: ${{ vars.DEFAULT_CONTAINER }}
+          PROJECT_VELVET: ${{ secrets.PROJECT_VELVET }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          envs: SHA,AZURE_STORAGE_CONNECTION_STRING,DEFAULT_CONTAINER,PROJECT_VELVET
+          script: |
+            IMAGE="ghcr.io/${{ github.repository_owner }}/image-service"
+            SHA="${SHA::7}"
+
+            kubectl create secret generic image-service \
+              --from-literal=AZURE_STORAGE_CONNECTION_STRING="$AZURE_STORAGE_CONNECTION_STRING" \
+              --from-literal=DEFAULT_CONTAINER="$DEFAULT_CONTAINER" \
+              --from-literal=PROJECT_VELVET="$PROJECT_VELVET" \
+              --dry-run=client -o yaml | kubectl apply -f -
+
+            if kubectl get deployment image-service &>/dev/null; then
+              echo "Deployment exists — updating image"
+            else
+              echo "First deploy — applying manifests"
+              kubectl apply -f /tmp/image-service-k8s/k8s/image-service/
+              kubectl apply -f /tmp/image-service-k8s/k8s/http-route.yaml
+              kubectl apply -f /tmp/image-service-k8s/k8s/mtls-gateway.yaml
+            fi
+
+            kubectl set image deployment/image-service image-service="${IMAGE}:${SHA}"
+            kubectl rollout status deployment/image-service --timeout=120s

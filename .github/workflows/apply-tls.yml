@@ -1,0 +1,47 @@
+name: Apply TLS Secrets
+
+# Se corre manualmente:
+#   - Primera vez al desplegar
+#   - Cuando se renueva algún certificado
+on:
+  workflow_dispatch:
+
+jobs:
+  apply-tls:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write certs and apply to cluster
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          # Certificado + llave del servidor
+          SERVER_CRT: ${{ secrets.TLS_SERVER_CRT }}
+          SERVER_KEY: ${{ secrets.TLS_SERVER_KEY }}
+          # CA que firmó los certs de los proyectos (para mTLS en el gateway)
+          CA_CRT: ${{ secrets.TLS_CA_CRT }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          envs: SERVER_CRT,SERVER_KEY,CA_CRT
+          script: |
+            # Escribir archivos temporales
+            echo "$SERVER_CRT" > /tmp/tls.crt
+            echo "$SERVER_KEY" > /tmp/tls.key
+            echo "$CA_CRT"     > /tmp/ca.crt
+
+            # Secret TLS del servidor (para el Gateway)
+            kubectl create secret tls image-service-tls \
+              --cert=/tmp/tls.crt \
+              --key=/tmp/tls.key \
+              --dry-run=client -o yaml | kubectl apply -f -
+
+            # Secret de la CA (para verificar certs cliente en mTLS)
+            kubectl create secret generic image-service-ca \
+              --from-file=ca.crt=/tmp/ca.crt \
+              --dry-run=client -o yaml | kubectl apply -f -
+
+            # Limpiar archivos temporales
+            rm -f /tmp/tls.crt /tmp/tls.key /tmp/ca.crt
+
+            echo "TLS secrets aplicados correctamente"
