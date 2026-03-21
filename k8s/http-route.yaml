@@ -7,6 +7,7 @@ spec:
   parentRefs:
     - name: gateway-api
       namespace: default
+      sectionName: https-mtls
 
   hostnames:
     - "image-service.dwitmexico.com"

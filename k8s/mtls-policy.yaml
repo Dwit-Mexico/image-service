@@ -1,0 +1,16 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: image-service-mtls
+  namespace: default
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: gateway-api
+    sectionName: https-mtls
+  tls:
+    clientValidation:
+      caCertificateRefs:
+        - kind: Secret
+          name: image-service-ca-secret
