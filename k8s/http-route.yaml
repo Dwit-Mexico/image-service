@@ -5,7 +5,7 @@ metadata:
   namespace: default
 spec:
   parentRefs:
-    - name: gateway-api # mismo Gateway que los demás servicios
+    - name: gateway-api
       namespace: default
 
   hostnames:
