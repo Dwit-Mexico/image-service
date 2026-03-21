@@ -74,7 +74,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           envs: SHA,AZURE_STORAGE_CONNECTION_STRING,DEFAULT_CONTAINER,PROJECT_VELVET
           script: |
-            IMAGE="ghcr.io/${{ github.repository_owner }}/image-service"
+            IMAGE="ghcr.io/$(echo "${{ github.repository_owner }}/image-service" | tr '[:upper:]' '[:lower:]')"
             SHA="${SHA::7}"
 
             kubectl create secret generic image-service \
@@ -87,7 +87,8 @@ jobs:
               echo "Deployment exists — updating image"
             else
               echo "First deploy — applying manifests"
-              kubectl apply -f /tmp/image-service-k8s/k8s/image-service/
+              kubectl apply -f /tmp/image-service-k8s/k8s/image-service/2-deployment.yaml
+              kubectl apply -f /tmp/image-service-k8s/k8s/image-service/3-service.yaml
               kubectl apply -f /tmp/image-service-k8s/k8s/http-route.yaml
               kubectl apply -f /tmp/image-service-k8s/k8s/mtls-gateway.yaml
             fi

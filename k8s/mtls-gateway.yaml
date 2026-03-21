@@ -10,7 +10,7 @@ metadata:
   name: image-service-gateway
   namespace: default
 spec:
-  gatewayClassName: eg           # reemplaza con tu GatewayClass
+  gatewayClassName: envoy # GatewayClass
   listeners:
     - name: https
       port: 443
@@ -18,7 +18,7 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: image-service-tls-secret   # Secret con tls.crt + tls.key
+          - name: image-service-tls-secret # Secret con tls.crt + tls.key
         # mTLS: certificado de la CA que firmó los certs de los proyectos
         options:
           gateway.envoyproxy.io/ca-secret: image-service-ca-secret
