@@ -18,7 +18,7 @@ COPY src ./src
 RUN touch src/main.rs && cargo build --release
 
 # ── Runner ────────────────────────────────────────────────────────────────────
-FROM debian:bookworm-slim AS runner
+FROM debian:trixie-slim AS runner
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libwebp7 ca-certificates \
