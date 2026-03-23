@@ -73,7 +73,10 @@ pub(crate) async fn process_and_upload(
     .await
     .map_err(|e| AppError::Processing(e.to_string()))??;
 
-    let key = format!("{}.{}", Uuid::new_v4(), format.extension());
+    let key = match &opts.folder {
+        Some(folder) => format!("{}/{}.{}", folder.trim_matches('/'), Uuid::new_v4(), format.extension()),
+        None => format!("{}.{}", Uuid::new_v4(), format.extension()),
+    };
 
     let url = state
         .storage

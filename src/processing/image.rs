@@ -42,6 +42,8 @@ pub struct ProcessOptions {
     pub format: Option<OutputFormat>,
     /// Contenedor Azure destino. Default: env DEFAULT_CONTAINER
     pub container: Option<String>,
+    /// Carpeta dentro del contenedor. Ej: "users/123/avatars"
+    pub folder: Option<String>,
 }
 
 impl Default for ProcessOptions {
@@ -51,6 +53,7 @@ impl Default for ProcessOptions {
             max_width: Some(2048),
             format: Some(OutputFormat::Webp),
             container: None,
+            folder: None,
         }
     }
 }
