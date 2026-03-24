@@ -8,14 +8,13 @@ mod storage;
 use std::sync::Arc;
 
 use axum::{
+    extract::DefaultBodyLimit,
     middleware as axum_middleware,
     routing::{get, post},
     Router,
 };
 use config::{default_container, load_projects, AppState};
-use handlers::{
-    batch::batch_upload_handler, health::health_handler, upload::upload_handler,
-};
+use handlers::{batch::batch_upload_handler, health::health_handler, upload::upload_handler};
 use middleware::auth_middleware;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -35,10 +34,14 @@ async fn main() {
         default_container: default_container(),
     };
 
+    // 30 MB máximo por request (cubre batch de varias imágenes)
+    const MAX_BODY: usize = 30 * 1024 * 1024;
+
     // Rutas protegidas (auth middleware)
     let protected = Router::new()
         .route("/upload", post(upload_handler))
         .route("/upload/batch", post(batch_upload_handler))
+        .layer(DefaultBodyLimit::max(MAX_BODY))
         .layer(axum_middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
