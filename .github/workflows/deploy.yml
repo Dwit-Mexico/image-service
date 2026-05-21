@@ -68,12 +68,13 @@ jobs:
           DEFAULT_CONTAINER: ${{ vars.DEFAULT_CONTAINER }}
           PROJECT_VELVET: ${{ secrets.PROJECT_VELVET }}
           PROJECT_PIXEL_SOLIDARY: ${{ secrets.PROJECT_PIXEL_SOLIDARY }}
+          PROJECT_PIXEL_SOLIDARI_DASHBOARD: ${{ secrets.PROJECT_PIXEL_SOLIDARI_DASHBOARD }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          envs: SHA,AZURE_STORAGE_CONNECTION_STRING,DEFAULT_CONTAINER,PROJECT_VELVET,PROJECT_PIXEL_SOLIDARY
+          envs: SHA,AZURE_STORAGE_CONNECTION_STRING,DEFAULT_CONTAINER,PROJECT_VELVET,PROJECT_PIXEL_SOLIDARY,PROJECT_PIXEL_SOLIDARI_DASHBOARD
           script: |
             IMAGE="ghcr.io/$(echo "${{ github.repository_owner }}/image-service" | tr '[:upper:]' '[:lower:]')"
             SHA="${SHA::7}"
@@ -83,6 +84,7 @@ jobs:
               --from-literal=DEFAULT_CONTAINER="$DEFAULT_CONTAINER" \
               --from-literal=PROJECT_VELVET="$PROJECT_VELVET" \
               --from-literal=PROJECT_PIXEL_SOLIDARY="$PROJECT_PIXEL_SOLIDARY" \
+              --from-literal=PROJECT_PIXEL_SOLIDARI_DASHBOARD="$PROJECT_PIXEL_SOLIDARI_DASHBOARD" \
               --dry-run=client -o yaml | kubectl apply -f -
 
             if kubectl get deployment image-service &>/dev/null; then
