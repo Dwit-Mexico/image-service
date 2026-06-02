@@ -29,3 +29,14 @@ futures = "0.3"
 dotenvy = "0.15"
 thiserror = "2"
 async-trait = "0.1"
+# Envelope encryption para credenciales de storage (KEK + DEK con AES-256-GCM)
+aes-gcm = "0.10"
+zeroize = "1"
+base64 = "0.22"
+# Persistencia
+sqlx = { version = "0.8", default-features = false, features = ["postgres", "uuid", "chrono", "runtime-tokio-rustls", "macros", "migrate"] }
+chrono = { version = "0.4", features = ["serde"] }
+# API key hashing (HMAC-SHA256)
+hmac = "0.12"
+sha2 = "0.10"
+rand = "0.8"

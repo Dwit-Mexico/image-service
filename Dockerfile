@@ -12,8 +12,11 @@ RUN mkdir src && echo 'fn main(){}' > src/main.rs
 RUN cargo build --release
 RUN rm src/main.rs
 
-# Código fuente
+# Código fuente + migraciones + metadata sqlx (compila offline, sin DB)
 COPY src ./src
+COPY migrations ./migrations
+COPY .sqlx ./.sqlx
+ENV SQLX_OFFLINE=true
 # Forzar recompilación del binario
 RUN touch src/main.rs && cargo build --release
 

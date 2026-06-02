@@ -1,8 +1,11 @@
 mod config;
+mod crypto;
+mod db;
 mod error;
 mod handlers;
 mod middleware;
 mod processing;
+mod projects;
 mod storage;
 
 use std::sync::Arc;

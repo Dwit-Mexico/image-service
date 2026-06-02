@@ -1,0 +1,106 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            id, name, cert_cn,\n            api_key_hash, api_key_salt, api_key_prefix,\n            storage_backend, storage_ciphertext, storage_nonce,\n            dek_ciphertext, dek_nonce, kek_version,\n            default_container, created_at, last_used_at\n        FROM projects\n        WHERE cert_cn = $1 AND revoked_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "cert_cn",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "api_key_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "api_key_salt",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 5,
+        "name": "api_key_prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "storage_backend",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "storage_ciphertext",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 8,
+        "name": "storage_nonce",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 9,
+        "name": "dek_ciphertext",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 10,
+        "name": "dek_nonce",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 11,
+        "name": "kek_version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "default_container",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "last_used_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "98c4e47cb8a33187f24fb8a43dd6d83c22e56b17f5f34b431ccc62d5d518df63"
+}

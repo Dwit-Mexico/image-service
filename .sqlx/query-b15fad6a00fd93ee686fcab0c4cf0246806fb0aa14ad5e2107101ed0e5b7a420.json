@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE projects SET revoked_at = now(), updated_at = now()\n         WHERE id = $1 AND revoked_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b15fad6a00fd93ee686fcab0c4cf0246806fb0aa14ad5e2107101ed0e5b7a420"
+}
