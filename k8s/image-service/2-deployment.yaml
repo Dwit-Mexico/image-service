@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: image-service
+  namespace: production
 spec:
   replicas: 2
   selector:
@@ -12,6 +13,25 @@ spec:
       labels:
         app: image-service
     spec:
+      # initContainers corren antes de la app:
+      #   1. migrate: aplica migraciones pendientes (idempotente)
+      #   2. seed-from-env: migra proyectos legacy PROJECT_* a la tabla
+      #      `projects` si están en el secret. Idempotente — salta los que
+      #      ya existen. Cuando elimines los PROJECT_* del secret, este
+      #      step se vuelve no-op automáticamente.
+      initContainers:
+        - name: migrate
+          image: ghcr.io/dwit-mexico/image-service:latest
+          command: ["/app/migrate"]
+          envFrom:
+            - secretRef:
+                name: image-service
+        - name: seed-from-env
+          image: ghcr.io/dwit-mexico/image-service:latest
+          command: ["/app/seed-from-env"]
+          envFrom:
+            - secretRef:
+                name: image-service
       containers:
         - name: image-service
           image: ghcr.io/dwit-mexico/image-service:latest

@@ -57,13 +57,21 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          source: "k8s/image-service/,k8s/http-route.yaml,k8s/mtls-gateway.yaml"
+          source: "k8s/image-service/,k8s/http-route.yaml,k8s/mtls-policy.yaml"
           target: "/tmp/image-service-k8s"
 
       - name: Deploy
         uses: appleboy/ssh-action@v1.0.3
         env:
           SHA: ${{ github.sha }}
+          # Bootstrap nuevo de auth dinámica
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MASTER_KEY_V1: ${{ secrets.MASTER_KEY_V1 }}
+          VALKEY_SENTINEL_ADDR: ${{ vars.VALKEY_SENTINEL_ADDR }}
+          VALKEY_MASTER_NAME: ${{ vars.VALKEY_MASTER_NAME }}
+          VALKEY_PASSWORD: ${{ secrets.VALKEY_PASSWORD }}
+          # Legacy — necesarios mientras seedeamos los proyectos en la DB.
+          # Una vez que `projects` esté poblada, pueden retirarse del secret.
           AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
           DEFAULT_CONTAINER: ${{ vars.DEFAULT_CONTAINER }}
           PROJECT_VELVET: ${{ secrets.PROJECT_VELVET }}
@@ -74,12 +82,20 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          envs: SHA,AZURE_STORAGE_CONNECTION_STRING,DEFAULT_CONTAINER,PROJECT_VELVET,PROJECT_PIXEL_SOLIDARY,PROJECT_PIXEL_SOLIDARI_DASHBOARD
+          envs: SHA,DATABASE_URL,MASTER_KEY_V1,VALKEY_SENTINEL_ADDR,VALKEY_MASTER_NAME,VALKEY_PASSWORD,AZURE_STORAGE_CONNECTION_STRING,DEFAULT_CONTAINER,PROJECT_VELVET,PROJECT_PIXEL_SOLIDARY,PROJECT_PIXEL_SOLIDARI_DASHBOARD
           script: |
             IMAGE="ghcr.io/$(echo "${{ github.repository_owner }}/image-service" | tr '[:upper:]' '[:lower:]')"
             SHA="${SHA::7}"
+            NS=production
 
-            kubectl create secret generic image-service \
+            kubectl get namespace "$NS" &>/dev/null || kubectl create namespace "$NS"
+
+            kubectl -n "$NS" create secret generic image-service \
+              --from-literal=DATABASE_URL="$DATABASE_URL" \
+              --from-literal=MASTER_KEY_V1="$MASTER_KEY_V1" \
+              --from-literal=VALKEY_SENTINEL_ADDR="$VALKEY_SENTINEL_ADDR" \
+              --from-literal=VALKEY_MASTER_NAME="$VALKEY_MASTER_NAME" \
+              --from-literal=VALKEY_PASSWORD="$VALKEY_PASSWORD" \
               --from-literal=AZURE_STORAGE_CONNECTION_STRING="$AZURE_STORAGE_CONNECTION_STRING" \
               --from-literal=DEFAULT_CONTAINER="$DEFAULT_CONTAINER" \
               --from-literal=PROJECT_VELVET="$PROJECT_VELVET" \
@@ -87,15 +103,16 @@ jobs:
               --from-literal=PROJECT_PIXEL_SOLIDARI_DASHBOARD="$PROJECT_PIXEL_SOLIDARI_DASHBOARD" \
               --dry-run=client -o yaml | kubectl apply -f -
 
-            if kubectl get deployment image-service &>/dev/null; then
+            if kubectl -n "$NS" get deployment image-service &>/dev/null; then
               echo "Deployment exists — updating image"
             else
               echo "First deploy — applying manifests"
               kubectl apply -f /tmp/image-service-k8s/k8s/image-service/2-deployment.yaml
               kubectl apply -f /tmp/image-service-k8s/k8s/image-service/3-service.yaml
               kubectl apply -f /tmp/image-service-k8s/k8s/http-route.yaml
-              kubectl apply -f /tmp/image-service-k8s/k8s/mtls-gateway.yaml
+              kubectl apply -f /tmp/image-service-k8s/k8s/mtls-policy.yaml
             fi
 
-            kubectl set image deployment/image-service image-service="${IMAGE}:${SHA}"
-            kubectl rollout status deployment/image-service --timeout=120s
+            kubectl -n "$NS" set image deployment/image-service \
+              image-service="${IMAGE}:${SHA}" migrate="${IMAGE}:${SHA}" seed-from-env="${IMAGE}:${SHA}"
+            kubectl -n "$NS" rollout status deployment/image-service --timeout=180s
