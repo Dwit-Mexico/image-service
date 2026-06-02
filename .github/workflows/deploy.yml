@@ -64,12 +64,13 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           SHA: ${{ github.sha }}
-          # Bootstrap nuevo de auth dinámica
+          # Bootstrap nuevo de auth dinámica.
+          # VALKEY_PASSWORD viene del Secret `valkey-auth` directo en el pod,
+          # no se incluye aquí.
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MASTER_KEY_V1: ${{ secrets.MASTER_KEY_V1 }}
           VALKEY_SENTINEL_ADDR: ${{ vars.VALKEY_SENTINEL_ADDR }}
           VALKEY_MASTER_NAME: ${{ vars.VALKEY_MASTER_NAME }}
-          VALKEY_PASSWORD: ${{ secrets.VALKEY_PASSWORD }}
           # Legacy — necesarios mientras seedeamos los proyectos en la DB.
           # Una vez que `projects` esté poblada, pueden retirarse del secret.
           AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
@@ -82,7 +83,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          envs: SHA,DATABASE_URL,MASTER_KEY_V1,VALKEY_SENTINEL_ADDR,VALKEY_MASTER_NAME,VALKEY_PASSWORD,AZURE_STORAGE_CONNECTION_STRING,DEFAULT_CONTAINER,PROJECT_VELVET,PROJECT_PIXEL_SOLIDARY,PROJECT_PIXEL_SOLIDARI_DASHBOARD
+          envs: SHA,DATABASE_URL,MASTER_KEY_V1,VALKEY_SENTINEL_ADDR,VALKEY_MASTER_NAME,AZURE_STORAGE_CONNECTION_STRING,DEFAULT_CONTAINER,PROJECT_VELVET,PROJECT_PIXEL_SOLIDARY,PROJECT_PIXEL_SOLIDARI_DASHBOARD
           script: |
             IMAGE="ghcr.io/$(echo "${{ github.repository_owner }}/image-service" | tr '[:upper:]' '[:lower:]')"
             SHA="${SHA::7}"
@@ -95,7 +96,6 @@ jobs:
               --from-literal=MASTER_KEY_V1="$MASTER_KEY_V1" \
               --from-literal=VALKEY_SENTINEL_ADDR="$VALKEY_SENTINEL_ADDR" \
               --from-literal=VALKEY_MASTER_NAME="$VALKEY_MASTER_NAME" \
-              --from-literal=VALKEY_PASSWORD="$VALKEY_PASSWORD" \
               --from-literal=AZURE_STORAGE_CONNECTION_STRING="$AZURE_STORAGE_CONNECTION_STRING" \
               --from-literal=DEFAULT_CONTAINER="$DEFAULT_CONTAINER" \
               --from-literal=PROJECT_VELVET="$PROJECT_VELVET" \

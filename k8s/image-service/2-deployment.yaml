@@ -19,6 +19,9 @@ spec:
       #      `projects` si están en el secret. Idempotente — salta los que
       #      ya existen. Cuando elimines los PROJECT_* del secret, este
       #      step se vuelve no-op automáticamente.
+      #
+      # VALKEY_PASSWORD viene del Secret `valkey-auth` (replicado por la
+      # infra de Valkey al namespace `production`) — single source of truth.
       initContainers:
         - name: migrate
           image: ghcr.io/dwit-mexico/image-service:latest
@@ -40,6 +43,12 @@ spec:
           envFrom:
             - secretRef:
                 name: image-service
+          env:
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: valkey-auth
+                  key: valkey-password
           livenessProbe:
             httpGet:
               path: /health
