@@ -1,13 +1,3 @@
-mod config;
-mod crypto;
-mod db;
-mod error;
-mod handlers;
-mod middleware;
-mod processing;
-mod projects;
-mod storage;
-
 use std::sync::Arc;
 
 use axum::{
@@ -16,11 +6,14 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use config::AppState;
-use crypto::Kek;
-use handlers::{batch::batch_upload_handler, health::health_handler, upload::upload_handler};
-use middleware::auth_middleware;
-use projects::ProjectResolver;
+use image_service::{
+    config::AppState,
+    crypto::Kek,
+    db,
+    handlers::{batch::batch_upload_handler, health::health_handler, upload::upload_handler},
+    middleware::auth_middleware,
+    projects::ProjectResolver,
+};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[tokio::main]
