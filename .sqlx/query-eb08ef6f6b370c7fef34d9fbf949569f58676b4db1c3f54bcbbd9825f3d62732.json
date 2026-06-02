@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE projects SET\n            storage_backend    = $2,\n            storage_ciphertext = $3,\n            storage_nonce      = $4,\n            dek_ciphertext     = $5,\n            dek_nonce          = $6,\n            kek_version        = $7,\n            default_container  = COALESCE($8, default_container),\n            updated_at         = now()\n        WHERE id = $1 AND revoked_at IS NULL\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eb08ef6f6b370c7fef34d9fbf949569f58676b4db1c3f54bcbbd9825f3d62732"
+}

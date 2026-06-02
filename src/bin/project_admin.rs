@@ -5,17 +5,21 @@
 //!   show <cert_cn>                             — detalles de un proyecto
 //!   create-azure <name> <cert_cn> <conn> [default_container]
 //!   create-s3    <name> <cert_cn> <access_key> <secret_key> <region> <bucket> [endpoint]
+//!   rotate-storage-azure <cert_cn> <conn>      — cambia connection_string
+//!   rotate-storage-s3    <cert_cn> <access_key> <secret_key> <region> <bucket> [endpoint]
 //!   revoke <cert_cn>                           — marca revoked_at = now()
 //!   rotate-key <cert_cn>                       — genera api key nueva, devuelve plaintext una vez
 //!
 //! Requiere DATABASE_URL + MASTER_KEY_V1 en el entorno.
+//! Si VALKEY_SENTINEL_ADDR + VALKEY_PASSWORD están definidos, publica
+//! invalidaciones del cache a los otros pods al rotar.
 
 use std::env;
 use std::process::ExitCode;
 
 use image_service::{
     crypto::{seal, Kek},
-    projects::{api_key, repo, storage_config, StorageConfig},
+    projects::{api_key, invalidator, repo, storage_config, StorageConfig},
 };
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
@@ -48,6 +52,8 @@ async fn main() -> ExitCode {
         "show" => cmd_show(&pool, rest).await,
         "create-azure" => cmd_create_azure(&pool, rest).await,
         "create-s3" => cmd_create_s3(&pool, rest).await,
+        "rotate-storage-azure" => cmd_rotate_storage_azure(&pool, rest).await,
+        "rotate-storage-s3" => cmd_rotate_storage_s3(&pool, rest).await,
         "revoke" => cmd_revoke(&pool, rest).await,
         "rotate-key" => cmd_rotate_key(&pool, rest).await,
         "help" | "-h" | "--help" => {
@@ -72,10 +78,12 @@ fn print_help() {
          comandos:\n  \
            list\n  \
            show <cert_cn>\n  \
-           create-azure <name> <cert_cn> <connection_string> [default_container]\n  \
-           create-s3    <name> <cert_cn> <access_key> <secret_key> <region> <bucket> [endpoint]\n  \
-           revoke       <cert_cn>\n  \
-           rotate-key   <cert_cn>"
+           create-azure         <name> <cert_cn> <connection_string> [default_container]\n  \
+           create-s3            <name> <cert_cn> <access_key> <secret_key> <region> <bucket> [endpoint]\n  \
+           rotate-storage-azure <cert_cn> <connection_string> [default_container]\n  \
+           rotate-storage-s3    <cert_cn> <access_key> <secret_key> <region> <bucket> [endpoint]\n  \
+           revoke               <cert_cn>\n  \
+           rotate-key           <cert_cn>"
     );
 }
 
@@ -211,6 +219,84 @@ async fn insert_project(
     println!("API key (MUÉSTRALA UNA SOLA VEZ — no se puede recuperar):");
     println!("  {}", key.plaintext);
     Ok(())
+}
+
+async fn cmd_rotate_storage_azure(pool: &PgPool, args: &[String]) -> Result<(), String> {
+    let cert_cn = args
+        .first()
+        .ok_or("uso: rotate-storage-azure <cert_cn> <connection_string> [default_container]")?;
+    let conn = args.get(1).ok_or("falta connection_string")?;
+    let default_container = args.get(2).map(|s| s.as_str());
+
+    let cfg = StorageConfig::Azure {
+        connection_string: conn.clone(),
+    };
+    rotate(pool, cert_cn, "azure", &cfg, default_container).await
+}
+
+async fn cmd_rotate_storage_s3(pool: &PgPool, args: &[String]) -> Result<(), String> {
+    let cert_cn = args.first().ok_or(
+        "uso: rotate-storage-s3 <cert_cn> <access_key> <secret_key> <region> <bucket> [endpoint]",
+    )?;
+    let access = args.get(1).ok_or("falta access_key")?;
+    let secret = args.get(2).ok_or("falta secret_key")?;
+    let region = args.get(3).ok_or("falta region")?;
+    let bucket = args.get(4).ok_or("falta bucket")?;
+    let endpoint = args.get(5).cloned();
+
+    let cfg = StorageConfig::S3 {
+        access_key_id: access.clone(),
+        secret_access_key: secret.clone(),
+        region: region.clone(),
+        bucket: bucket.clone(),
+        endpoint,
+    };
+    rotate(pool, cert_cn, "s3", &cfg, None).await
+}
+
+async fn rotate(
+    pool: &PgPool,
+    cert_cn: &str,
+    backend: &str,
+    cfg: &StorageConfig,
+    default_container: Option<&str>,
+) -> Result<(), String> {
+    let kek = load_kek()?;
+    let row = repo::find_active_by_cert_cn(pool, cert_cn)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("proyecto '{cert_cn}' no encontrado"))?;
+
+    let storage_json = storage_config::to_json(cfg).map_err(|e| e.to_string())?;
+    let blob = seal(&kek, &storage_json).map_err(|e| e.to_string())?;
+
+    let ok = repo::rotate_storage(pool, row.id, backend, &blob, default_container)
+        .await
+        .map_err(|e| e.to_string())?;
+    if !ok {
+        return Err("rotate no afectó filas".into());
+    }
+    println!("rotated storage for {cert_cn} (id={})", row.id);
+    println!("  backend = {backend}");
+    if let Some(c) = default_container {
+        println!("  default_container = {c}");
+    }
+    publish_invalidation_best_effort(cert_cn).await;
+    Ok(())
+}
+
+/// Si Valkey está configurado, publica la invalidación para que los otros pods
+/// purguen su cache al instante. Si falla (Valkey down, no configurado), solo
+/// loggea — el TTL de 30s del cache local se encarga eventualmente.
+async fn publish_invalidation_best_effort(cert_cn: &str) {
+    let Some(cfg) = invalidator::ValkeyConfig::from_env() else {
+        eprintln!("(sin VALKEY_SENTINEL_ADDR — cache local de otros pods expira en ~30s)");
+        return;
+    };
+    match invalidator::publish_invalidation(&cfg, cert_cn).await {
+        Ok(_) => eprintln!("invalidación publicada a Valkey — otros pods purgan ya"),
+        Err(e) => eprintln!("(warning: publish a Valkey falló: {e}; TTL de 30s lo cubre)"),
+    }
 }
 
 async fn cmd_revoke(pool: &PgPool, args: &[String]) -> Result<(), String> {

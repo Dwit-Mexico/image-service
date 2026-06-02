@@ -162,11 +162,14 @@ pub async fn revoke(pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
 }
 
 /// Re-cifra storage_config con un blob nuevo (para rotación de credenciales).
+/// Si `default_container` es `Some`, también lo actualiza; si es `None`, deja
+/// el existente (COALESCE).
 pub async fn rotate_storage(
     pool: &PgPool,
     id: Uuid,
     backend: &str,
     blob: &EncryptedBlob,
+    default_container: Option<&str>,
 ) -> Result<bool, sqlx::Error> {
     let res = sqlx::query!(
         r#"
@@ -177,6 +180,7 @@ pub async fn rotate_storage(
             dek_ciphertext     = $5,
             dek_nonce          = $6,
             kek_version        = $7,
+            default_container  = COALESCE($8, default_container),
             updated_at         = now()
         WHERE id = $1 AND revoked_at IS NULL
         "#,
@@ -187,6 +191,7 @@ pub async fn rotate_storage(
         blob.dek_ciphertext,
         blob.dek_nonce,
         blob.kek_version as i32,
+        default_container,
     )
     .execute(pool)
     .await?;
