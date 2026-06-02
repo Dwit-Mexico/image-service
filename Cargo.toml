@@ -40,3 +40,7 @@ chrono = { version = "0.4", features = ["serde"] }
 hmac = "0.12"
 sha2 = "0.10"
 rand = "0.8"
+# Cache async con TTL para el resolver
+moka = { version = "0.12", features = ["future"] }
+# Valkey/Redis client + Sentinel + pub/sub para invalidación distribuida
+redis = { version = "0.27", default-features = false, features = ["tokio-rustls-comp", "sentinel"] }

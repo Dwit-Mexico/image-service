@@ -1,11 +1,13 @@
 pub mod api_key;
 pub mod repo;
+pub mod resolver;
 pub mod storage_config;
 
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 pub use api_key::{ApiKeyError, ApiKeyHash, GeneratedKey};
+pub use resolver::{ProjectResolver, ResolveError};
 pub use storage_config::StorageConfig;
 
 /// Proyecto totalmente resuelto: lo que va al cache después del miss

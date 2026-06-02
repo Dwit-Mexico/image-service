@@ -135,7 +135,7 @@ mod tests {
     }
 
     #[test]
-    fn s3_sin_endpoint_no_serializa_campo() {
+    fn s3_without_endpoint_omits_field() {
         let cfg = StorageConfig::S3 {
             access_key_id: "AKIA...".into(),
             secret_access_key: "s".into(),
@@ -148,7 +148,7 @@ mod tests {
     }
 
     #[test]
-    fn backend_discriminator_presente() {
+    fn backend_discriminator_present() {
         let cfg = StorageConfig::Azure {
             connection_string: "x".into(),
         };
@@ -157,27 +157,27 @@ mod tests {
     }
 
     #[test]
-    fn debug_redacta_secrets() {
+    fn debug_redacts_secrets() {
         let cfg = StorageConfig::Azure {
-            connection_string: "secretísimo".into(),
+            connection_string: "super-secret".into(),
         };
         let s = format!("{cfg:?}");
-        assert!(!s.contains("secretísimo"));
+        assert!(!s.contains("super-secret"));
         assert!(s.contains("REDACTED"));
     }
 
     #[test]
-    fn debug_s3_redacta_keys_pero_no_region() {
+    fn debug_s3_redacts_keys_but_keeps_region() {
         let cfg = StorageConfig::S3 {
             access_key_id: "AKIAEXAMPLE".into(),
-            secret_access_key: "ssh-no-mires".into(),
+            secret_access_key: "do-not-look".into(),
             region: "us-east-1".into(),
             bucket: "my-bucket".into(),
             endpoint: None,
         };
         let s = format!("{cfg:?}");
         assert!(!s.contains("AKIAEXAMPLE"));
-        assert!(!s.contains("ssh-no-mires"));
+        assert!(!s.contains("do-not-look"));
         assert!(s.contains("us-east-1"));
         assert!(s.contains("my-bucket"));
     }

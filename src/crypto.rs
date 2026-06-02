@@ -169,9 +169,9 @@ mod tests {
     }
 
     #[test]
-    fn cada_seal_usa_dek_y_nonce_distintos() {
+    fn each_seal_uses_different_dek_and_nonce() {
         let kek = test_kek(1);
-        let pt = b"misma payload";
+        let pt = b"same payload";
         let a = seal(&kek, pt).unwrap();
         let b = seal(&kek, pt).unwrap();
         assert_ne!(a.ciphertext, b.ciphertext);
@@ -181,20 +181,20 @@ mod tests {
     }
 
     #[test]
-    fn kek_incorrecta_falla() {
+    fn wrong_kek_fails() {
         let kek_a = test_kek(1);
-        let mut otra = [9u8; 32];
-        otra[0] = 1;
+        let mut other = [9u8; 32];
+        other[0] = 1;
         let kek_b = Kek {
             version: 1,
-            key: otra,
+            key: other,
         };
         let blob = seal(&kek_a, b"secret").unwrap();
         assert!(matches!(open(&kek_b, &blob), Err(CryptoError::AeadFailure)));
     }
 
     #[test]
-    fn version_mismatch_rechazado() {
+    fn version_mismatch_rejected() {
         let kek_v1 = test_kek(1);
         let kek_v2 = test_kek(2);
         let blob = seal(&kek_v1, b"secret").unwrap();
@@ -208,7 +208,7 @@ mod tests {
     }
 
     #[test]
-    fn ciphertext_tampered_falla() {
+    fn tampered_ciphertext_fails() {
         let kek = test_kek(1);
         let mut blob = seal(&kek, b"secret payload").unwrap();
         blob.ciphertext[0] ^= 0x01;
@@ -216,7 +216,7 @@ mod tests {
     }
 
     #[test]
-    fn dek_ciphertext_tampered_falla() {
+    fn tampered_dek_ciphertext_fails() {
         let kek = test_kek(1);
         let mut blob = seal(&kek, b"secret payload").unwrap();
         blob.dek_ciphertext[0] ^= 0x01;
@@ -224,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    fn nonce_de_tamano_invalido_rechazado() {
+    fn invalid_nonce_size_rejected() {
         let kek = test_kek(1);
         let mut blob = seal(&kek, b"secret payload").unwrap();
         blob.nonce.push(0);
@@ -232,16 +232,16 @@ mod tests {
     }
 
     #[test]
-    fn from_base64_valida_longitud() {
-        let corta = STANDARD.encode([0u8; 16]);
+    fn from_base64_validates_length() {
+        let short = STANDARD.encode([0u8; 16]);
         assert!(matches!(
-            Kek::from_base64(1, &corta),
+            Kek::from_base64(1, &short),
             Err(CryptoError::InvalidKey(_))
         ));
     }
 
     #[test]
-    fn from_base64_rechaza_invalido() {
+    fn from_base64_rejects_invalid() {
         assert!(matches!(
             Kek::from_base64(1, "not!!base64!!"),
             Err(CryptoError::InvalidKey(_))
@@ -249,7 +249,7 @@ mod tests {
     }
 
     #[test]
-    fn debug_redacta_la_key() {
+    fn debug_redacts_the_key() {
         let kek = test_kek(1);
         let s = format!("{kek:?}");
         assert!(s.contains("REDACTED"));

@@ -89,16 +89,26 @@ pub fn generate() -> GeneratedKey {
     OsRng.fill_bytes(&mut random);
     let suffix = URL_SAFE_NO_PAD.encode(random);
     let plaintext = format!("{KEY_PREFIX}{suffix}");
+    let hash = hash_with_new_salt(&plaintext);
+    GeneratedKey { plaintext, hash }
+}
 
+/// Importa una key ya existente (caso de migración o cliente ya configurado).
+/// El caller pasa el plaintext que ya conoce el cliente y obtiene el hash
+/// listo para persistir. Acepta cualquier formato — no asume el prefijo
+/// `sk_live_` para tolerar keys legadas con otra forma.
+pub fn import(plaintext: &str) -> ApiKeyHash {
+    hash_with_new_salt(plaintext)
+}
+
+fn hash_with_new_salt(plaintext: &str) -> ApiKeyHash {
     let mut salt = [0u8; SALT_BYTES];
     OsRng.fill_bytes(&mut salt);
-
     let hash = hmac_key(&salt, plaintext.as_bytes());
-    let prefix = prefix_of(&plaintext);
-
-    GeneratedKey {
-        plaintext,
-        hash: ApiKeyHash { hash, salt, prefix },
+    ApiKeyHash {
+        hash,
+        salt,
+        prefix: prefix_of(plaintext),
     }
 }
 
@@ -118,7 +128,8 @@ fn hmac_key(salt: &[u8], key: &[u8]) -> [u8; HASH_BYTES] {
 }
 
 fn prefix_of(key: &str) -> String {
-    // 12 chars = "sk_live_" (8) + 4 chars del suffix random
+    // 12 chars = "sk_live_" (8) + 4 chars del suffix random, o equivalente
+    // para keys legadas con otro formato.
     key.chars().take(12).collect()
 }
 
@@ -127,20 +138,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn generate_y_verify_roundtrip() {
+    fn generate_and_verify_roundtrip() {
         let gen = generate();
         assert!(gen.plaintext.starts_with("sk_live_"));
         assert!(verify(&gen.plaintext, &gen.hash));
     }
 
     #[test]
-    fn key_incorrecta_falla() {
+    fn wrong_key_fails() {
         let gen = generate();
-        assert!(!verify("sk_live_otra_cosa_distinta_aqui", &gen.hash));
+        assert!(!verify("sk_live_some_other_key_here", &gen.hash));
     }
 
     #[test]
-    fn dos_generates_distintos_dan_keys_distintas() {
+    fn two_generates_produce_different_keys() {
         let a = generate();
         let b = generate();
         assert_ne!(a.plaintext, b.plaintext);
@@ -149,24 +160,24 @@ mod tests {
     }
 
     #[test]
-    fn misma_key_con_distinto_salt_da_distinto_hash() {
+    fn same_key_with_different_salt_produces_different_hash() {
         let a = generate();
         let b = generate();
-        // Mismo plaintext, salt distinto
+        // mismo plaintext, salt distinto
         let hash_a = hmac_key(&a.hash.salt, a.plaintext.as_bytes());
         let hash_b = hmac_key(&b.hash.salt, a.plaintext.as_bytes());
         assert_ne!(hash_a, hash_b);
     }
 
     #[test]
-    fn prefix_es_los_primeros_12_chars() {
+    fn prefix_is_first_12_chars() {
         let gen = generate();
         assert_eq!(gen.hash.prefix.len(), 12);
         assert!(gen.plaintext.starts_with(&gen.hash.prefix));
     }
 
     #[test]
-    fn debug_redacta_hash_y_salt() {
+    fn debug_redacts_hash_and_salt() {
         let gen = generate();
         let s = format!("{:?}", gen.hash);
         assert!(s.contains(&gen.hash.prefix));
@@ -174,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn from_stored_rechaza_longitudes_invalidas() {
+    fn from_stored_rejects_invalid_lengths() {
         assert!(matches!(
             ApiKeyHash::from_stored(&[0u8; 10], &[0u8; 32], "x".into()),
             Err(ApiKeyError::InvalidStored)
@@ -186,9 +197,27 @@ mod tests {
     }
 
     #[test]
-    fn entropia_minima_de_la_key() {
+    fn minimum_key_entropy() {
         let gen = generate();
         // 24 random bytes → ~32 chars base64url. Más "sk_live_" → ≥40
         assert!(gen.plaintext.len() >= 40, "len = {}", gen.plaintext.len());
+    }
+
+    #[test]
+    fn import_accepts_existing_key_and_verifies() {
+        // Valor fake — el formato es lo que importa, no el contenido.
+        let legacy = "sk_live_FAKE0000000000000000000000000000FAKE";
+        let hash = import(legacy);
+        assert!(verify(legacy, &hash));
+        assert!(!verify("sk_live_some_other_distinct_key", &hash));
+    }
+
+    #[test]
+    fn import_does_not_require_sk_live_prefix() {
+        // Tolera keys legadas con cualquier formato.
+        let exotic = "AKID_LEGACY_TOKEN_xyz";
+        let hash = import(exotic);
+        assert!(verify(exotic, &hash));
+        assert_eq!(hash.prefix, "AKID_LEGACY_");
     }
 }
