@@ -74,7 +74,7 @@ jobs:
           # Legacy — necesarios mientras seedeamos los proyectos en la DB.
           # Una vez que `projects` esté poblada, pueden retirarse del secret.
           AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
-          DEFAULT_CONTAINER: ${{ vars.DEFAULT_CONTAINER }}
+          DEFAULT_CONTAINER: ${{ secrets.DEFAULT_CONTAINER }}
           PROJECT_VELVET: ${{ secrets.PROJECT_VELVET }}
           PROJECT_PIXEL_SOLIDARY: ${{ secrets.PROJECT_PIXEL_SOLIDARY }}
           PROJECT_PIXEL_SOLIDARI_DASHBOARD: ${{ secrets.PROJECT_PIXEL_SOLIDARI_DASHBOARD }}
