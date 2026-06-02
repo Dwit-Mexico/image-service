@@ -52,3 +52,4 @@ rand = "0.8"
 moka = { version = "0.12", features = ["future"] }
 # Valkey/Redis client + Sentinel + pub/sub para invalidación distribuida
 redis = { version = "0.27", default-features = false, features = ["tokio-rustls-comp", "sentinel"] }
+urlencoding = "2"

@@ -1,4 +1,5 @@
 pub mod api_key;
+pub mod invalidator;
 pub mod repo;
 pub mod resolver;
 pub mod storage_config;

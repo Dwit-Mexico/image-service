@@ -12,7 +12,7 @@ use image_service::{
     db,
     handlers::{batch::batch_upload_handler, health::health_handler, upload::upload_handler},
     middleware::auth_middleware,
-    projects::ProjectResolver,
+    projects::{invalidator, ProjectResolver},
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -30,6 +30,16 @@ async fn main() {
         .await
         .expect("postgres connect/migrate failed");
     let resolver = Arc::new(ProjectResolver::new(pool, kek));
+
+    // Subscriber Valkey: opcional. Si VALKEY_SENTINEL_ADDR no está seteado
+    // (típico en local sin acceso a la red interna de k8s), arrancamos sin
+    // pub/sub y el TTL del cache cubre las invalidaciones.
+    if let Some(cfg) = invalidator::ValkeyConfig::from_env() {
+        let resolver_for_sub = Arc::clone(&resolver);
+        tokio::spawn(invalidator::run_subscriber(resolver_for_sub, cfg));
+    } else {
+        tracing::warn!("VALKEY_SENTINEL_ADDR no seteado — corriendo sin invalidación distribuida");
+    }
 
     let state = AppState { resolver };
 
