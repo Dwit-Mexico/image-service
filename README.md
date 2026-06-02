@@ -79,6 +79,25 @@ Mientras los proyectos aún se seedean desde env vars, el binario `seed-from-env
 
 Una vez seedeados a Postgres, estas variables se pueden eliminar del secret.
 
+## Schema y migraciones
+
+Las tablas se crean **automáticamente** la primera vez que el servicio (o `cargo run --bin migrate`) se conecta a la DB. No hay que correr DDL a mano.
+
+- Los archivos `.sql` viven en `migrations/` (numerados: `0001_init.sql`, `0002_…`)
+- sqlx los **embebe en el binario** al compilar (`sqlx::migrate!("./migrations")` en `src/db.rs:36`)
+- Al arrancar, sqlx lee la tabla `_sqlx_migrations` para ver cuáles ya corrieron y solo aplica las pendientes
+- Es idempotente — restarts no rompen nada
+- Cada `.sql` corre en una transacción; si falla a mitad, rollback completo
+
+Quién corre las migraciones:
+| Contexto | Cuándo se aplican |
+|---|---|
+| Local dev | Al arrancar el servicio (`cargo run --bin image-service`) o explícito (`cargo run --bin migrate`) |
+| Producción (k8s) | initContainer `migrate` corre antes que la app, en cada rollout |
+| CI/CD | El initContainer ya cubre el caso — no necesitas un step extra |
+
+Para agregar una migración nueva: crear `migrations/0002_<nombre>.sql`, commit, y se aplica sola en el próximo deploy.
+
 ## Registro de proyectos
 
 Cada proyecto vive en la tabla `projects` con:
