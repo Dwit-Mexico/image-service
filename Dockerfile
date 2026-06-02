@@ -22,7 +22,10 @@ COPY src ./src
 COPY migrations ./migrations
 COPY .sqlx ./.sqlx
 ENV SQLX_OFFLINE=true
-RUN cargo build --release
+# Toca mtimes para forzar a Cargo a recompilar: Docker COPY preserva mtimes
+# del host (anteriores al stub build), así que sin touch Cargo cree que los
+# binarios están up-to-date y deja los stubs en target/release.
+RUN find src -name '*.rs' -exec touch {} + && cargo build --release
 
 # ── Runner ────────────────────────────────────────────────────────────────────
 FROM debian:trixie-slim AS runner
