@@ -2,12 +2,11 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: image-service-route
-  namespace: production
+  namespace: default
 spec:
   parentRefs:
     - name: gateway-api
       namespace: default
-      sectionName: https-mtls
 
   hostnames:
     - "image-service.dwitmexico.com"
@@ -19,4 +18,22 @@ spec:
             value: /
       backendRefs:
         - name: image-service
+          namespace: production
           port: 80
+---
+# Autoriza al HTTPRoute en `default` a referenciar Service `image-service`
+# en namespace `production`. Sin esto el route falla con RefNotPermitted.
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: image-service-ref-grant
+  namespace: production
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: default
+  to:
+    - group: ""
+      kind: Service
+      name: image-service
