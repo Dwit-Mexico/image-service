@@ -1,11 +1,9 @@
-use std::env;
-
 use object_store::{azure::MicrosoftAzureBuilder, path::Path, ObjectStore};
 
 use super::async_trait;
-use super::StorageProvider;
+use super::{StorageError, StorageProvider};
 
-/// Guarda las credenciales y crea un store por container en cada upload.
+/// Guarda credenciales y construye un store por container en cada upload.
 /// Así soportamos containers dinámicos sin requerir un store por container al inicio.
 pub struct AzureStorage {
     account: String,
@@ -13,14 +11,12 @@ pub struct AzureStorage {
 }
 
 impl AzureStorage {
-    pub fn from_env() -> Self {
-        let conn = env::var("AZURE_STORAGE_CONNECTION_STRING")
-            .expect("AZURE_STORAGE_CONNECTION_STRING requerido");
-
-        // Parsear "Key=Val;Key=Val;..." — nota: AccountKey puede contener '='
+    /// Construye desde una connection string Azure ("AccountName=...;AccountKey=...;...").
+    pub fn from_connection_string(conn: &str) -> Result<Self, StorageError> {
         let mut account = String::new();
         let mut access_key = String::new();
 
+        // AccountKey puede contener '=', por eso split por ';' y strip_prefix
         for part in conn.split(';') {
             if let Some(v) = part.strip_prefix("AccountName=") {
                 account = v.to_string();
@@ -29,19 +25,16 @@ impl AzureStorage {
             }
         }
 
-        assert!(
-            !account.is_empty(),
-            "AccountName no encontrado en connection string"
-        );
-        assert!(
-            !access_key.is_empty(),
-            "AccountKey no encontrado en connection string"
-        );
-
-        Self {
+        if account.is_empty() {
+            return Err(StorageError::Config("AccountName missing".into()));
+        }
+        if access_key.is_empty() {
+            return Err(StorageError::Config("AccountKey missing".into()));
+        }
+        Ok(Self {
             account,
             access_key,
-        }
+        })
     }
 
     fn store_for(&self, container: &str) -> anyhow::Result<impl ObjectStore> {

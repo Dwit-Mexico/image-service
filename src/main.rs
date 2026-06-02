@@ -16,14 +16,15 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use config::{default_container, load_projects, AppState};
+use config::AppState;
+use crypto::Kek;
 use handlers::{batch::batch_upload_handler, health::health_handler, upload::upload_handler};
 use middleware::auth_middleware;
+use projects::ProjectResolver;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[tokio::main]
 async fn main() {
-    // Cargar .env en desarrollo
     let _ = dotenvy::dotenv();
 
     tracing_subscriber::registry()
@@ -31,16 +32,17 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer().json())
         .init();
 
-    let state = AppState {
-        storage: storage::from_env(),
-        projects: Arc::new(load_projects()),
-        default_container: default_container(),
-    };
+    let kek = Arc::new(Kek::from_env().expect("MASTER_KEY_V1 missing or invalid"));
+    let pool = db::connect_and_migrate()
+        .await
+        .expect("postgres connect/migrate failed");
+    let resolver = Arc::new(ProjectResolver::new(pool, kek));
+
+    let state = AppState { resolver };
 
     // 30 MB máximo por request (cubre batch de varias imágenes)
     const MAX_BODY: usize = 30 * 1024 * 1024;
 
-    // Rutas protegidas (auth middleware)
     let protected = Router::new()
         .route("/upload", post(upload_handler))
         .route("/upload/batch", post(batch_upload_handler))
@@ -57,6 +59,6 @@ async fn main() {
 
     let addr = std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".into());
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    tracing::info!("Escuchando en {addr}");
+    tracing::info!("listening on {addr}");
     axum::serve(listener, app).await.unwrap();
 }

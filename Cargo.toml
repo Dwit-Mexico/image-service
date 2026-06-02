@@ -19,8 +19,8 @@ subtle = "2"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "bmp", "tiff", "ico", "webp"] }
 # webp encoding con control de calidad (el crate `image` solo decoda webp)
 webp = "0.3"
-# Azure Blob Storage
-object_store = { version = "0.11", features = ["azure"] }
+# Azure Blob Storage + S3 (también soporta S3-compatible: MinIO, R2)
+object_store = { version = "0.11", features = ["azure", "aws"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 anyhow = "1"

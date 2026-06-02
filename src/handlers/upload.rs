@@ -1,11 +1,14 @@
-use axum::{extract::State, Json};
+use std::sync::Arc;
+
+use axum::{Extension, Json};
 use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
-    config::AppState,
     error::AppError,
     processing::{process_image, ProcessOptions},
+    projects::ResolvedProject,
+    storage,
 };
 
 #[derive(Serialize)]
@@ -18,7 +21,7 @@ pub struct UploadResponse {
 }
 
 pub async fn upload_handler(
-    State(state): State<AppState>,
+    Extension(project): Extension<Arc<ResolvedProject>>,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<UploadResponse>, AppError> {
     let mut file_bytes: Option<Vec<u8>> = None;
@@ -51,19 +54,21 @@ pub async fn upload_handler(
     }
 
     let raw = file_bytes.ok_or_else(|| AppError::BadRequest("campo 'file' requerido".into()))?;
-    process_and_upload(raw, opts, &state).await
+    process_and_upload(raw, opts, &project).await
 }
 
 pub(crate) async fn process_and_upload(
     raw: Vec<u8>,
     opts: ProcessOptions,
-    state: &AppState,
+    project: &ResolvedProject,
 ) -> Result<Json<UploadResponse>, AppError> {
     let original_bytes = raw.len();
+
     let container = opts
         .container
         .clone()
-        .unwrap_or_else(|| state.default_container.clone());
+        .or_else(|| project.default_container.clone())
+        .unwrap_or_else(|| "images".to_string());
 
     let (compressed, format) = tokio::task::spawn_blocking({
         let raw = raw.clone();
@@ -74,12 +79,18 @@ pub(crate) async fn process_and_upload(
     .map_err(|e| AppError::Processing(e.to_string()))??;
 
     let key = match &opts.folder {
-        Some(folder) => format!("{}/{}.{}", folder.trim_matches('/'), Uuid::new_v4(), format.extension()),
+        Some(folder) => format!(
+            "{}/{}.{}",
+            folder.trim_matches('/'),
+            Uuid::new_v4(),
+            format.extension()
+        ),
         None => format!("{}.{}", Uuid::new_v4(), format.extension()),
     };
 
-    let url = state
-        .storage
+    let store = storage::build(&project.storage_config)
+        .map_err(|e| AppError::Storage(anyhow::anyhow!("build storage: {e}")))?;
+    let url = store
         .upload(&container, &key, compressed.clone(), format.mime())
         .await?;
 

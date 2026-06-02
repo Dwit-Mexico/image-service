@@ -1,8 +1,10 @@
-use axum::{extract::State, Json};
+use std::sync::Arc;
+
+use axum::{Extension, Json};
 use futures::future::join_all;
 use serde::Serialize;
 
-use crate::{config::AppState, error::AppError, processing::ProcessOptions};
+use crate::{error::AppError, processing::ProcessOptions, projects::ResolvedProject};
 
 use super::upload::{process_and_upload, UploadResponse};
 
@@ -26,7 +28,7 @@ pub struct BatchItem {
 /// Acepta multipart con múltiples campos `file` y un campo opcional `options`
 /// (JSON compartido para todas las imágenes del batch).
 pub async fn batch_upload_handler(
-    State(state): State<AppState>,
+    Extension(project): Extension<Arc<ResolvedProject>>,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<BatchUploadResponse>, AppError> {
     let mut files: Vec<Vec<u8>> = Vec::new();
@@ -63,15 +65,14 @@ pub async fn batch_upload_handler(
         ));
     }
 
-    // Procesar en paralelo
     let tasks: Vec<_> = files
         .into_iter()
         .enumerate()
         .map(|(i, raw)| {
             let opts = opts.clone();
-            let state = state.clone();
+            let project = Arc::clone(&project);
             async move {
-                let res = process_and_upload(raw, opts, &state).await;
+                let res = process_and_upload(raw, opts, &project).await;
                 (i, res)
             }
         })
@@ -104,7 +105,6 @@ pub async fn batch_upload_handler(
         }
     }
 
-    // Ordenar por índice original
     results.sort_by_key(|r| r.index);
 
     Ok(Json(BatchUploadResponse {

@@ -1,61 +1,68 @@
+use std::sync::Arc;
+
 use axum::{
     extract::{Request, State},
     middleware::Next,
     response::Response,
 };
-use subtle::ConstantTimeEq;
 
-use crate::{config::AppState, error::AppError};
+use crate::{
+    config::AppState,
+    error::AppError,
+    projects::{api_key, ResolveError, ResolvedProject},
+};
 
-/// Doble verificación: cert CN (via mTLS forward header) + API key por proyecto.
+/// Doble verificación: cert CN (vía mTLS forward header) + API key por proyecto.
 ///
-/// El gateway (Istio / Envoy Gateway) termina mTLS y reenvía la cadena
-/// `X-Forwarded-Client-Cert` con el CN del certificado cliente.
-/// Formato Envoy: `By=...;Hash=...;Subject="CN=project-alpha,..."`
+/// El Gateway termina mTLS y reenvía la cadena `X-Forwarded-Client-Cert` con
+/// el CN del certificado cliente. El header `X-API-Key` debe coincidir con
+/// la key registrada para ese cert_cn.
 ///
-/// El header `X-API-Key` debe coincidir exactamente con la key del proyecto.
+/// El `ResolvedProject` resultante se inyecta en `request.extensions()` para
+/// que los handlers lo extraigan con `Extension<Arc<ResolvedProject>>`.
 pub async fn auth_middleware(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
-    request: Request,
+    mut request: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    // — 1. Extraer CN del cert cliente —
-    let cert_cn = extract_cert_cn(&headers)
-        .ok_or_else(|| AppError::Unauthorized("certificado cliente ausente o inválido".into()))?;
+    let cert_cn = extract_cert_cn(&headers).ok_or_else(|| {
+        AppError::Unauthorized("certificado cliente ausente o inválido".into())
+    })?;
 
-    // — 2. Buscar la key esperada para ese proyecto —
-    let expected_key = state
-        .projects
-        .get(&cert_cn.to_lowercase())
-        .ok_or_else(|| AppError::Unauthorized(format!("proyecto '{cert_cn}' no registrado")))?;
+    let resolved = state
+        .resolver
+        .resolve(&cert_cn.to_lowercase())
+        .await
+        .map_err(|e| match e {
+            ResolveError::NotFound => {
+                AppError::Unauthorized(format!("proyecto '{cert_cn}' no registrado"))
+            }
+            other => {
+                tracing::error!("resolver error para cn={cert_cn}: {other}");
+                AppError::Unauthorized("auth no disponible".into())
+            }
+        })?;
 
-    // — 3. Verificar API key (timing-safe) —
     let provided_key = headers
         .get("X-API-Key")
         .and_then(|v| v.to_str().ok())
         .ok_or_else(|| AppError::Unauthorized("header X-API-Key ausente".into()))?;
 
-    let valid: bool = expected_key
-        .as_bytes()
-        .ct_eq(provided_key.as_bytes())
-        .into();
-
-    if !valid {
+    if !api_key::verify(provided_key, &resolved.api_key_hash) {
         return Err(AppError::Unauthorized("API key inválida".into()));
     }
 
+    state.resolver.record_use(resolved.id);
+    request.extensions_mut().insert(Arc::clone(&resolved));
     Ok(next.run(request).await)
 }
 
-/// Extrae el CN del header `X-Forwarded-Client-Cert` que Envoy/Istio inyecta.
+/// Extrae el CN del header `X-Forwarded-Client-Cert` que el Gateway inyecta,
+/// o del fallback `X-Client-Cert-CN` si el Gateway ya lo parseó.
 ///
-/// El valor tiene la forma:
-///   `By=spiffe://...;Hash=...;Subject="CN=project-alpha,O=Acme"`
-///
-/// Fallback: header `X-Client-Cert-CN` para gateways que ya lo parsean.
+/// Formato XFCC: `By=...;Hash=...;Subject="CN=project-alpha,O=Acme"`
 fn extract_cert_cn(headers: &axum::http::HeaderMap) -> Option<String> {
-    // Fallback simple: algunos gateways ya extraen solo el CN
     if let Some(cn) = headers
         .get("X-Client-Cert-CN")
         .and_then(|v| v.to_str().ok())
@@ -63,12 +70,10 @@ fn extract_cert_cn(headers: &axum::http::HeaderMap) -> Option<String> {
         return Some(cn.to_string());
     }
 
-    // Parseo de X-Forwarded-Client-Cert (formato Envoy)
     let xfcc = headers
         .get("X-Forwarded-Client-Cert")
         .and_then(|v| v.to_str().ok())?;
 
-    // Busca Subject="CN=<valor>,..."
     for part in xfcc.split(';') {
         let part = part.trim();
         if let Some(subject) = part.strip_prefix("Subject=\"") {
@@ -83,3 +88,7 @@ fn extract_cert_cn(headers: &axum::http::HeaderMap) -> Option<String> {
 
     None
 }
+
+// Silencia warning de import si en algún punto no se usa Arc directamente
+#[allow(dead_code)]
+fn _project_type_anchor(_: Arc<ResolvedProject>) {}
