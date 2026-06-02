@@ -12,6 +12,7 @@ RUN mkdir -p src/bin && \
     echo 'fn main(){}' > src/main.rs && \
     echo 'fn main(){}' > src/bin/migrate.rs && \
     echo 'fn main(){}' > src/bin/seed_from_env.rs && \
+    echo 'fn main(){}' > src/bin/project_admin.rs && \
     echo '' > src/lib.rs
 RUN cargo build --release
 RUN rm -rf src
@@ -34,6 +35,7 @@ WORKDIR /app
 COPY --from=builder /app/target/release/image-service .
 COPY --from=builder /app/target/release/migrate .
 COPY --from=builder /app/target/release/seed-from-env .
+COPY --from=builder /app/target/release/project-admin .
 
 EXPOSE 8080
 ENV LISTEN_ADDR=0.0.0.0:8080

@@ -141,6 +141,31 @@ curl -X POST http://localhost:8080/upload \
 | `image-service`   | Servicio HTTP principal                                                |
 | `migrate`         | Aplica migraciones pendientes y termina (init container o pre-deploy)  |
 | `seed-from-env`   | Migra `PROJECT_*` legacy a la tabla `projects`. Idempotente.           |
+| `project-admin`   | CLI: `list`, `show`, `create-azure`/`create-s3`, `revoke`, `rotate-key` |
+
+### `project-admin` — ejemplos
+
+```bash
+# Listar proyectos
+project-admin list
+
+# Crear proyecto Azure
+project-admin create-azure my-tenant my-tenant-cn \
+  "DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net" \
+  my-container
+# → imprime la API key plaintext UNA SOLA VEZ
+
+# Crear proyecto S3 (también funciona con MinIO/R2 si pasas endpoint)
+project-admin create-s3 my-tenant my-tenant-cn ACCESS_KEY SECRET_KEY us-east-1 my-bucket
+
+# Rotar la API key (la vieja se invalida — publica a Valkey para corte inmediato)
+project-admin rotate-key my-tenant-cn
+
+# Revocar (no se borra; se marca revoked_at)
+project-admin revoke my-tenant-cn
+```
+
+En producción: `kubectl -n production exec -it deploy/image-service -- /app/project-admin list`
 
 ## Deploy
 

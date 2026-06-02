@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE projects\n         SET api_key_hash = $2, api_key_salt = $3, api_key_prefix = $4, updated_at = now()\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c633d37d7be42771966873093d2fb6337ce553036a9d61b72d6d995b09336e43"
+}
