@@ -86,7 +86,7 @@ Mismo formato, acepta múltiples campos `file`. Las `options` son compartidas pa
 | `VALKEY_MASTER_NAME`   | no        | Default: `mymaster`                                                    |
 | `VALKEY_PASSWORD`      | no        | Si Valkey está protegido con auth                                      |
 | `ADMIN_USERNAME`       | no        | Default: `admin`                                                       |
-| `ADMIN_PASSWORD_HASH`  | no        | Hash argon2id. Si no está, `/admin/*` se omite                         |
+| `ADMIN_PASSWORD_HASH`  | no        | Hash argon2id. Si no está, `/admin/*` se omite. En prod **no se setea a mano** — lo genera el workflow `rotate-admin-password.yml` desde el Secret `ADMIN_PASSWORD_PLAIN` |
 | `LISTEN_ADDR`          | no        | Default: `0.0.0.0:8080`                                                |
 | `RUST_LOG`             | no        | Default: `info`                                                        |
 
