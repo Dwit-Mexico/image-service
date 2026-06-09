@@ -19,7 +19,7 @@ use std::process::ExitCode;
 
 use image_service::{
     admin::auth as admin_auth,
-    crypto::{seal, Kek},
+    crypto::{open, seal, Kek},
     projects::{api_key, invalidator, repo, storage_config, StorageConfig},
     storage,
 };
@@ -74,6 +74,7 @@ async fn main() -> ExitCode {
         "create-s3" => cmd_create_s3(&pool, rest).await,
         "rotate-storage-azure" => cmd_rotate_storage_azure(&pool, rest).await,
         "rotate-storage-s3" => cmd_rotate_storage_s3(&pool, rest).await,
+        "set-s3-endpoint" => cmd_set_s3_endpoint(&pool, rest).await,
         "revoke" => cmd_revoke(&pool, rest).await,
         "rotate-key" => cmd_rotate_key(&pool, rest).await,
         other => Err(format!("comando desconocido: {other}")),
@@ -98,6 +99,7 @@ fn print_help() {
            create-s3            <name> <cert_cn> <access_key> <secret_key> <region> <bucket> [endpoint]\n  \
            rotate-storage-azure <cert_cn> <connection_string> [default_container]\n  \
            rotate-storage-s3    <cert_cn> <access_key> <secret_key> <region> <bucket> [endpoint]\n  \
+           set-s3-endpoint      <cert_cn> [endpoint]   (omitir = limpiarlo, AWS estándar)\n  \
            revoke               <cert_cn>\n  \
            rotate-key           <cert_cn>\n  \
            admin-hash           (lee password de stdin, imprime hash argon2id)"
@@ -270,6 +272,57 @@ async fn cmd_rotate_storage_s3(pool: &PgPool, args: &[String]) -> Result<(), Str
         endpoint,
     };
     rotate(pool, cert_cn, "s3", &cfg, None).await
+}
+
+async fn cmd_set_s3_endpoint(pool: &PgPool, args: &[String]) -> Result<(), String> {
+    let cert_cn = args.first().ok_or("uso: set-s3-endpoint <cert_cn> [endpoint]")?;
+    let new_endpoint = args.get(1).cloned().filter(|s| !s.is_empty());
+
+    let kek = load_kek()?;
+    let row = repo::find_active_by_cert_cn(pool, cert_cn)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("proyecto '{cert_cn}' no encontrado"))?;
+
+    if row.storage_backend != "s3" {
+        return Err(format!(
+            "proyecto '{cert_cn}' usa backend '{}', no s3",
+            row.storage_backend
+        ));
+    }
+
+    // Decrypt → modify → re-encrypt. Mantiene access/secret/region/bucket intactos.
+    let blob = row.encrypted_blob();
+    let plaintext = open(&kek, &blob).map_err(|e| e.to_string())?;
+    let mut cfg: StorageConfig =
+        storage_config::from_json(&plaintext).map_err(|e| e.to_string())?;
+
+    match &mut cfg {
+        StorageConfig::S3 { endpoint, .. } => {
+            let prev = endpoint.clone();
+            *endpoint = new_endpoint.clone();
+            if prev == *endpoint {
+                println!("endpoint ya tenía ese valor — no hay cambio");
+                return Ok(());
+            }
+        }
+        _ => return Err("no es backend s3".into()),
+    }
+
+    storage::validate(&cfg)?;
+
+    let new_json = storage_config::to_json(&cfg).map_err(|e| e.to_string())?;
+    let new_blob = seal(&kek, &new_json).map_err(|e| e.to_string())?;
+    repo::rotate_storage(pool, row.id, "s3", &new_blob, None)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    match new_endpoint {
+        Some(ep) => println!("endpoint actualizado a '{ep}' para {cert_cn}"),
+        None => println!("endpoint eliminado para {cert_cn} (AWS estándar virtual-hosted)"),
+    }
+    publish_invalidation_best_effort(cert_cn).await;
+    Ok(())
 }
 
 async fn rotate(

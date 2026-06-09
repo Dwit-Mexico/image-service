@@ -145,6 +145,7 @@ Subcomandos:
 | `create-s3 <name> <cert_cn> <access> <secret> <region> <bucket> [endpoint]` | Crear con S3/MinIO/R2 |
 | `rotate-storage-azure <cert_cn> <conn> [container]` | Rotar creds Azure |
 | `rotate-storage-s3 <cert_cn> <access> <secret> <region> <bucket> [endpoint]` | Rotar creds S3 |
+| `set-s3-endpoint <cert_cn> [endpoint]` | Editar solo el endpoint S3 (omitir = limpiarlo → AWS estándar). No re-tipea creds. |
 | `rotate-key <cert_cn>` | Genera nueva API key |
 | `revoke <cert_cn>` | Marca `revoked_at` |
 | `admin-hash` | Lee password de stdin, imprime hash argon2id |
