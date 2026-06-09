@@ -20,6 +20,7 @@ use crate::admin::templates::{
 use crate::config::AppState;
 use crate::crypto::seal;
 use crate::projects::{api_key, invalidator, repo, storage_config, StorageConfig};
+use crate::storage;
 
 // ────────────────── login / logout ──────────────────
 
@@ -278,6 +279,16 @@ pub async fn create_post(
         _ => return (StatusCode::BAD_REQUEST, "backend inválido").into_response(),
     };
 
+    if let Err(msg) = storage::validate(&cfg) {
+        return CreateTpl {
+            user,
+            backend: form.backend,
+            error: Some(msg),
+            csrf_token: csrf_for(&jar),
+        }
+        .into_response();
+    }
+
     let key = api_key::generate();
     let storage_json = match storage_config::to_json(&cfg) {
         Ok(j) => j,
@@ -440,6 +451,14 @@ pub async fn rotate_storage_post(
         },
         _ => return (StatusCode::BAD_REQUEST, "backend inválido").into_response(),
     };
+
+    if let Err(msg) = storage::validate(&cfg) {
+        return Redirect::to(&format!(
+            "/admin/projects/{cert_cn}?flash={}",
+            urlencoding::encode(&msg)
+        ))
+        .into_response();
+    }
 
     let kek = match &state.kek {
         Some(k) => k,

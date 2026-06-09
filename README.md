@@ -163,6 +163,15 @@ WHERE revoked_at IS NULL;
 
 `seed-from-env` lee las env vars `PROJECT_*` legacy y las inserta en la tabla `projects` con la **misma API key plaintext** (hasheada con salt nuevo). El cliente sigue usando la misma key, no necesita reconfigurar nada. Es idempotente.
 
+### Reglas de configuración S3
+
+El servicio garantiza el invariante **`id` (UploadResponse) == Key real en S3**. Para que se cumpla con cualquier addressing style:
+
+- **AWS S3 estándar**: **NO** especifiques `endpoint`. El SDK usa virtual-hosted style automáticamente con `region + bucket` → URL `https://<bucket>.s3.<region>.amazonaws.com/<key>`, objeto bajo Key=`<key>`.
+- **S3-compatible (MinIO, Cloudflare R2, ...)**: `endpoint` debe ser la URL **base del servicio sin el bucket en el subdominio** (p.ej. `https://<account>.r2.cloudflarestorage.com`, `https://minio.local:9000`). object_store usa path-style → URL `<endpoint>/<bucket>/<key>`, objeto bajo Key=`<key>`.
+
+Lo que se **rechaza** al crear/rotar un proyecto (`project-admin create-s3`, `rotate-storage-s3`, o desde la UI admin): un `endpoint` con la forma virtual-hosted de AWS (`<bucket>.s3.<region>.amazonaws.com` o `<bucket>.s3.amazonaws.com`). Si se pasa esa URL como endpoint, S3 interpreta el subdominio como bucket Y el primer segmento del path como Key — el objeto termina bajo Key `<bucket>/<key>` y el contrato id↔Key se rompe silenciosamente.
+
 ## Desarrollo local
 
 ```bash

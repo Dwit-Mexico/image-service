@@ -21,6 +21,7 @@ use image_service::{
     admin::auth as admin_auth,
     crypto::{seal, Kek},
     projects::{api_key, invalidator, repo, storage_config, StorageConfig},
+    storage,
 };
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
@@ -207,6 +208,7 @@ async fn insert_project(
     cfg: &StorageConfig,
     default_container: Option<&str>,
 ) -> Result<(), String> {
+    storage::validate(cfg)?;
     let kek = load_kek()?;
     let key = api_key::generate();
     let storage_json = storage_config::to_json(cfg).map_err(|e| e.to_string())?;
@@ -277,6 +279,7 @@ async fn rotate(
     cfg: &StorageConfig,
     default_container: Option<&str>,
 ) -> Result<(), String> {
+    storage::validate(cfg)?;
     let kek = load_kek()?;
     let row = repo::find_active_by_cert_cn(pool, cert_cn)
         .await
