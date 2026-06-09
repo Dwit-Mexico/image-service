@@ -1,0 +1,64 @@
+{% extends "admin/base.html" %}
+{% block title %}dashboard — image-service admin{% endblock %}
+
+{% block nav %}
+<nav>
+  <strong>image-service admin</strong>
+  <div>
+    <span>👤 {{ user }}</span>
+    <form method="post" action="/admin/logout" style="display:inline">
+      <button type="submit" class="secondary" style="padding: 0.25rem 0.75rem">logout</button>
+    </form>
+  </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+{% if let Some(msg) = flash %}
+  <div class="flash ok">{{ msg }}</div>
+{% endif %}
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin: 1rem 0">
+  <h2 style="margin: 0">proyectos</h2>
+  <div>
+    <a href="/admin/projects/new?backend=azure" role="button">+ azure</a>
+    <a href="/admin/projects/new?backend=s3" role="button" class="secondary">+ s3</a>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>name</th>
+      <th>cert_cn</th>
+      <th>prefix</th>
+      <th>backend</th>
+      <th>container</th>
+      <th>last used</th>
+      <th>status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in projects %}
+    <tr>
+      <td><a href="/admin/projects/{{ p.cert_cn }}">{{ p.name }}</a></td>
+      <td class="mono">{{ p.cert_cn }}</td>
+      <td class="mono">{{ p.api_key_prefix }}</td>
+      <td>{{ p.backend }}</td>
+      <td>{{ p.container }}</td>
+      <td>{{ p.last_used }}</td>
+      <td>
+        {% if p.status == "active" %}
+          <span class="pill active">active</span>
+        {% else %}
+          <span class="pill revoked">revoked</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    {% if projects.is_empty() %}
+    <tr><td colspan="7"><em>aún no hay proyectos</em></td></tr>
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}

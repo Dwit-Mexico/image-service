@@ -1,0 +1,29 @@
+{% extends "admin/base.html" %}
+{% block title %}proyecto creado — image-service admin{% endblock %}
+
+{% block nav %}
+<nav>
+  <strong><a href="/admin">image-service admin</a></strong>
+  <div>
+    <span>👤 {{ user }}</span>
+    <form method="post" action="/admin/logout" style="display:inline">
+      <button type="submit" class="secondary" style="padding: 0.25rem 0.75rem">logout</button>
+    </form>
+  </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<h2>proyecto creado ✓</h2>
+
+<div class="key-display">
+  <strong>API key generada — guárdala AHORA, no se puede recuperar:</strong>
+  <p><code>{{ plaintext_key }}</code></p>
+  <p>Dale esta key al cliente. Tendrá que mandarla en el header <code>X-API-Key</code> en cada request, junto con <code>X-Client-Cert-CN: {{ cert_cn }}</code> (vía mTLS o header directo).</p>
+</div>
+
+<p>
+  <a href="/admin/projects/{{ cert_cn }}" role="button">ver proyecto</a>
+  <a href="/admin" role="button" class="secondary">volver al dashboard</a>
+</p>
+{% endblock %}

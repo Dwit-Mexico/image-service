@@ -53,7 +53,16 @@ hmac = "0.12"
 sha2 = "0.10"
 rand = "0.8"
 # Cache async con TTL para el resolver
-moka = { version = "0.12", features = ["future"] }
+moka = { version = "0.12", features = ["future", "sync"] }
+# Para max-age de cookies (axum_extra::extract::cookie usa la crate `time`)
+time = "0.3"
 # Valkey/Redis client + Sentinel + pub/sub para invalidación distribuida
 redis = { version = "0.27", default-features = false, features = ["tokio-rustls-comp", "sentinel"] }
 urlencoding = "2"
+# Admin UI
+askama = "0.12"
+askama_axum = "0.4"
+axum-extra = { version = "0.9", features = ["cookie-signed"] }
+argon2 = "0.5"
+password-hash = "0.5"
+rpassword = "7"

@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            id, name, cert_cn,\n            api_key_prefix,\n            storage_backend,\n            default_container,\n            created_at, last_used_at, revoked_at\n        FROM projects\n        WHERE cert_cn = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "cert_cn",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "api_key_prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "storage_backend",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "default_container",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "last_used_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "revoked_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "ccce3ee29baec67e4bc1586184afb25b23e89fc923997e5985c97afc7af98b9c"
+}

@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::{
@@ -7,6 +8,7 @@ use axum::{
     Router,
 };
 use image_service::{
+    admin,
     config::AppState,
     crypto::Kek,
     db,
@@ -29,21 +31,28 @@ async fn main() {
     let pool = db::connect_and_migrate()
         .await
         .expect("postgres connect/migrate failed");
-    let resolver = Arc::new(ProjectResolver::new(pool, kek));
+    let resolver = Arc::new(ProjectResolver::new(pool, Arc::clone(&kek)));
 
-    // Subscriber Valkey: opcional. Si VALKEY_SENTINEL_ADDR no está seteado
-    // (típico en local sin acceso a la red interna de k8s), arrancamos sin
-    // pub/sub y el TTL del cache cubre las invalidaciones.
     if let Some(cfg) = invalidator::ValkeyConfig::from_env() {
         let resolver_for_sub = Arc::clone(&resolver);
         tokio::spawn(invalidator::run_subscriber(resolver_for_sub, cfg));
     } else {
-        tracing::warn!("VALKEY_SENTINEL_ADDR no seteado — corriendo sin invalidación distribuida");
+        tracing::warn!("VALKEY_SENTINEL_ADDR no seteado — sin invalidación distribuida");
     }
 
-    let state = AppState { resolver };
+    let admin_state = admin::AdminState::from_env(&kek);
+    if admin_state.is_some() {
+        tracing::info!("admin UI montada en /admin");
+    } else {
+        tracing::info!("admin UI deshabilitada (sin ADMIN_PASSWORD_HASH)");
+    }
 
-    // 30 MB máximo por request (cubre batch de varias imágenes)
+    let state = AppState {
+        resolver,
+        kek: Some(kek),
+        admin: admin_state,
+    };
+
     const MAX_BODY: usize = 30 * 1024 * 1024;
 
     let protected = Router::new()
@@ -55,13 +64,24 @@ async fn main() {
             auth_middleware,
         ));
 
-    let app = Router::new()
+    let admin_router = if state.admin.is_some() {
+        Some(admin::router(state.clone()))
+    } else {
+        None
+    };
+
+    let mut app = Router::new()
         .route("/health", get(health_handler))
-        .merge(protected)
-        .with_state(state);
+        .merge(protected);
+    if let Some(adm) = admin_router {
+        app = app.nest("/admin", adm);
+    }
+    let app = app.with_state(state);
 
     let addr = std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".into());
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     tracing::info!("listening on {addr}");
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+        .await
+        .unwrap();
 }

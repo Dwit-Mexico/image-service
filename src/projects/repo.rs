@@ -70,6 +70,43 @@ pub struct ProjectSummary {
     pub revoked_at: Option<DateTime<Utc>>,
 }
 
+/// Como `find_active_by_cert_cn` pero también devuelve filas revocadas
+/// (para la UI admin que muestra historia).
+pub async fn find_by_cert_cn_any(
+    pool: &PgPool,
+    cert_cn: &str,
+) -> Result<Option<FullProjectRow>, sqlx::Error> {
+    sqlx::query_as!(
+        FullProjectRow,
+        r#"
+        SELECT
+            id, name, cert_cn,
+            api_key_prefix,
+            storage_backend,
+            default_container,
+            created_at, last_used_at, revoked_at
+        FROM projects
+        WHERE cert_cn = $1
+        "#,
+        cert_cn
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+#[derive(Debug)]
+pub struct FullProjectRow {
+    pub id: Uuid,
+    pub name: String,
+    pub cert_cn: String,
+    pub api_key_prefix: String,
+    pub storage_backend: String,
+    pub default_container: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub last_used_at: Option<DateTime<Utc>>,
+    pub revoked_at: Option<DateTime<Utc>>,
+}
+
 /// Hot path: lookup en cada request (vía cache miss).
 pub async fn find_active_by_cert_cn(
     pool: &PgPool,

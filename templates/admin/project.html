@@ -1,0 +1,96 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ name }} — image-service admin{% endblock %}
+
+{% block nav %}
+<nav>
+  <strong><a href="/admin">image-service admin</a></strong>
+  <div>
+    <span>👤 {{ user }}</span>
+    <form method="post" action="/admin/logout" style="display:inline">
+      <button type="submit" class="secondary" style="padding: 0.25rem 0.75rem">logout</button>
+    </form>
+  </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+{% if let Some(msg) = flash %}
+  <div class="flash ok">{{ msg }}</div>
+{% endif %}
+
+{% if let Some(key) = newly_generated_key %}
+<div class="key-display">
+  <strong>nueva API key — guárdala ahora, no se puede recuperar:</strong>
+  <p><code>{{ key }}</code></p>
+  <p><small>otros pods purgan el cache al instante vía Valkey, o en 30s vía TTL.</small></p>
+</div>
+{% endif %}
+
+<h2>{{ name }}
+  {% if revoked %}<span class="pill revoked">REVOKED</span>{% else %}<span class="pill active">active</span>{% endif %}
+</h2>
+
+<table>
+  <tr><th>id</th><td class="mono">{{ id }}</td></tr>
+  <tr><th>cert_cn</th><td class="mono">{{ cert_cn }}</td></tr>
+  <tr><th>api_key_prefix</th><td class="mono">{{ api_key_prefix }}</td></tr>
+  <tr><th>backend</th><td>{{ backend }}</td></tr>
+  <tr><th>default container</th><td>{{ container }}</td></tr>
+  <tr><th>created</th><td>{{ created_at }}</td></tr>
+  <tr><th>last used</th><td>
+    {% if let Some(t) = last_used %}{{ t }}{% else %}—{% endif %}
+  </td></tr>
+</table>
+
+{% if !revoked %}
+<h3>acciones</h3>
+
+<details>
+  <summary>rotar API key</summary>
+  <p>Genera una nueva key plaintext. La vieja deja de funcionar inmediatamente (con Valkey) o tras 30s (cache TTL).</p>
+  <form method="post" action="/admin/projects/{{ cert_cn }}/rotate-key">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <button type="submit" class="contrast">rotate API key</button>
+  </form>
+</details>
+
+<details>
+  <summary>rotar storage</summary>
+  {% if backend == "azure" %}
+  <form method="post" action="/admin/projects/{{ cert_cn }}/rotate-storage">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="backend" value="azure">
+    <label>
+      connection string
+      <textarea name="connection_string" rows="4" required placeholder="DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net"></textarea>
+    </label>
+    <label>
+      default container (opcional — vacío para no cambiar)
+      <input type="text" name="default_container" placeholder="{{ container }}">
+    </label>
+    <button type="submit" class="contrast">rotate storage</button>
+  </form>
+  {% else %}
+  <form method="post" action="/admin/projects/{{ cert_cn }}/rotate-storage">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="backend" value="s3">
+    <label>access_key_id<input type="text" name="access_key_id" required></label>
+    <label>secret_access_key<input type="password" name="secret_access_key" required></label>
+    <label>region<input type="text" name="region" required></label>
+    <label>bucket<input type="text" name="bucket" required></label>
+    <label>endpoint (opcional, para MinIO/R2)<input type="text" name="endpoint"></label>
+    <button type="submit" class="contrast">rotate storage</button>
+  </form>
+  {% endif %}
+</details>
+
+<details>
+  <summary class="danger">revocar</summary>
+  <p class="danger">Bloquea inmediatamente los uploads de este proyecto. Acción reversible solo vía SQL.</p>
+  <form method="post" action="/admin/projects/{{ cert_cn }}/revoke" onsubmit="return confirm('¿Seguro que quieres revocar {{ cert_cn }}?')">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <button type="submit" class="danger">revocar</button>
+  </form>
+</details>
+{% endif %}
+{% endblock %}

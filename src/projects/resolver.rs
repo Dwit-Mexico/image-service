@@ -50,6 +50,11 @@ pub struct ProjectResolver {
 }
 
 impl ProjectResolver {
+    /// Acceso a la pool para queries auxiliares (admin UI, CLI).
+    pub fn pool(&self) -> PgPool {
+        self.pool.clone()
+    }
+
     pub fn new(pool: PgPool, kek: Arc<Kek>) -> Self {
         let cache = Cache::builder()
             .max_capacity(CACHE_CAPACITY)

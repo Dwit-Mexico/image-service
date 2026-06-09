@@ -79,6 +79,22 @@ impl Kek {
     pub fn version(&self) -> u32 {
         self.version
     }
+
+    /// Deriva una sub-key de 32 bytes con HMAC-SHA256(KEK, context).
+    /// Útil para keys auxiliares (cookie signing, etc.) sin exponer la KEK cruda.
+    pub fn derive_subkey(&self, context: &[u8]) -> [u8; 32] {
+        use hmac::{Hmac, Mac};
+        use sha2::Sha256;
+        // Desambigua: `KeyInit::new_from_slice` (de aead) y `Mac::new_from_slice`
+        // ambos están en scope; queremos el de Mac.
+        let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&self.key)
+            .expect("hmac accepts any length");
+        mac.update(context);
+        let out = mac.finalize().into_bytes();
+        let mut buf = [0u8; 32];
+        buf.copy_from_slice(&out);
+        buf
+    }
 }
 
 #[derive(Debug, Clone)]

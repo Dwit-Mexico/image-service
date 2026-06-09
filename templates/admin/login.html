@@ -1,0 +1,22 @@
+{% extends "admin/base.html" %}
+{% block title %}login — image-service admin{% endblock %}
+
+{% block content %}
+<article style="max-width: 420px; margin: 4rem auto;">
+  <header><strong>image-service admin</strong></header>
+  {% if let Some(err) = error %}
+    <div class="flash err">{{ err }}</div>
+  {% endif %}
+  <form method="post" action="/admin/login">
+    <label>
+      usuario
+      <input type="text" name="username" autocomplete="username" required>
+    </label>
+    <label>
+      password
+      <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit">entrar</button>
+  </form>
+</article>
+{% endblock %}

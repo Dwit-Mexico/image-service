@@ -21,6 +21,7 @@ RUN rm -rf src
 COPY src ./src
 COPY migrations ./migrations
 COPY .sqlx ./.sqlx
+COPY templates ./templates
 ENV SQLX_OFFLINE=true
 # Toca mtimes para forzar a Cargo a recompilar: Docker COPY preserva mtimes
 # del host (anteriores al stub build), así que sin touch Cargo cree que los

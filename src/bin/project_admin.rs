@@ -18,6 +18,7 @@ use std::env;
 use std::process::ExitCode;
 
 use image_service::{
+    admin::auth as admin_auth,
     crypto::{seal, Kek},
     projects::{api_key, invalidator, repo, storage_config, StorageConfig},
 };
@@ -39,6 +40,24 @@ async fn main() -> ExitCode {
     };
     let rest = &args[1..];
 
+    // Comandos que no necesitan DB (se manejan antes para no exigir DATABASE_URL)
+    match cmd {
+        "help" | "-h" | "--help" => {
+            print_help();
+            return ExitCode::SUCCESS;
+        }
+        "admin-hash" => {
+            return match cmd_admin_hash() {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    ExitCode::FAILURE
+                }
+            };
+        }
+        _ => {}
+    }
+
     let pool = match connect_pool().await {
         Ok(p) => p,
         Err(e) => {
@@ -56,10 +75,6 @@ async fn main() -> ExitCode {
         "rotate-storage-s3" => cmd_rotate_storage_s3(&pool, rest).await,
         "revoke" => cmd_revoke(&pool, rest).await,
         "rotate-key" => cmd_rotate_key(&pool, rest).await,
-        "help" | "-h" | "--help" => {
-            print_help();
-            return ExitCode::SUCCESS;
-        }
         other => Err(format!("comando desconocido: {other}")),
     };
 
@@ -83,7 +98,8 @@ fn print_help() {
            rotate-storage-azure <cert_cn> <connection_string> [default_container]\n  \
            rotate-storage-s3    <cert_cn> <access_key> <secret_key> <region> <bucket> [endpoint]\n  \
            revoke               <cert_cn>\n  \
-           rotate-key           <cert_cn>"
+           rotate-key           <cert_cn>\n  \
+           admin-hash           (lee password de stdin, imprime hash argon2id)"
     );
 }
 
@@ -343,6 +359,24 @@ async fn cmd_rotate_key(pool: &PgPool, args: &[String]) -> Result<(), String> {
     println!("la key vieja sigue siendo válida hasta que expire el cache TTL (30s) — ");
     println!("publica una invalidación a Valkey si necesitas corte inmediato:");
     println!("  redis-cli PUBLISH projects:invalidate {cert_cn}");
+    Ok(())
+}
+
+fn cmd_admin_hash() -> Result<(), String> {
+    let pwd = rpassword::prompt_password("password: ").map_err(|e| e.to_string())?;
+    let confirm = rpassword::prompt_password("confirma:  ").map_err(|e| e.to_string())?;
+    if pwd != confirm {
+        return Err("los passwords no coinciden".into());
+    }
+    if pwd.len() < 8 {
+        return Err("password mínimo 8 chars".into());
+    }
+    let hash = admin_auth::hash_password(&pwd)?;
+    println!();
+    println!("ADMIN_PASSWORD_HASH={hash}");
+    println!();
+    println!("guárdalo como secret en GitHub Actions (o donde manejes secrets)");
+    println!("y agrégalo al secret `image-service` del cluster.");
     Ok(())
 }
 

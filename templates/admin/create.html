@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+{% block title %}crear proyecto — image-service admin{% endblock %}
+
+{% block nav %}
+<nav>
+  <strong><a href="/admin">image-service admin</a></strong>
+  <div>
+    <span>👤 {{ user }}</span>
+    <form method="post" action="/admin/logout" style="display:inline">
+      <button type="submit" class="secondary" style="padding: 0.25rem 0.75rem">logout</button>
+    </form>
+  </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<h2>nuevo proyecto ({{ backend }})</h2>
+
+{% if let Some(err) = error %}
+  <div class="flash err">{{ err }}</div>
+{% endif %}
+
+<form method="post" action="/admin/projects">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <input type="hidden" name="backend" value="{{ backend }}">
+
+  <label>name (etiqueta human-readable)<input type="text" name="name" required></label>
+  <label>cert_cn (debe coincidir con el CN del cert mTLS del cliente)<input type="text" name="cert_cn" required></label>
+
+  {% if backend == "azure" %}
+  <label>
+    Azure connection string
+    <textarea name="connection_string" rows="4" required placeholder="DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net"></textarea>
+  </label>
+  <label>default container (opcional)<input type="text" name="default_container"></label>
+  {% else %}
+  <label>access_key_id<input type="text" name="access_key_id" required></label>
+  <label>secret_access_key<input type="password" name="secret_access_key" required></label>
+  <label>region<input type="text" name="region" required placeholder="us-east-1"></label>
+  <label>bucket<input type="text" name="bucket" required></label>
+  <label>endpoint (opcional, para MinIO/R2)<input type="text" name="endpoint" placeholder="https://...r2.cloudflarestorage.com"></label>
+  {% endif %}
+
+  <button type="submit">crear y generar API key</button>
+  <a href="/admin" role="button" class="secondary">cancelar</a>
+</form>
+{% endblock %}
