@@ -232,7 +232,33 @@ curl -X POST http://localhost:8080/upload \
 - Reescribe solo el secret (preservando `ADMIN_PASSWORD_HASH`) y hace `rollout restart`. Úsalo cuando rotes credenciales legacy sin cambiar código.
 
 **`rotate-admin-password.yml`** — manual:
-- Genera password (input o random 24 chars), hashea con argon2id en el runner, **patchea solo la key `ADMIN_PASSWORD_HASH`** del secret de k8s, reinicia el deployment. El plaintext sale en el "Job Summary" una sola vez.
+- Lee el password del Secret de GitHub **`ADMIN_PASSWORD_PLAIN`** (sin inputs en el form de "Run workflow"), lo hashea con argon2id en el runner, **patchea solo la key `ADMIN_PASSWORD_HASH`** del secret de k8s y reinicia el deployment. El plaintext nunca aparece en logs ni job summary (GitHub enmascara automáticamente valores de `secrets.*`). Para rotar: edita el Secret y re-ejecuta el workflow.
+
+### GitHub Secrets y Variables que necesita el repo
+
+> Settings → Secrets and variables → Actions
+
+**Secrets** (cifrados, enmascarados en logs):
+
+| Nombre                            | Quién lo usa                    | Notas |
+|-----------------------------------|---------------------------------|-------|
+| `SSH_HOST`, `SSH_USER`, `SSH_KEY`, `SSH_PORT` | deploy / update-secrets / rotate-admin | acceso al nodo k3s |
+| `DATABASE_URL`                    | deploy / update-secrets         | `postgres://user:pwd@postgres.data.svc.cluster.local:5432/image_service` |
+| `MASTER_KEY_V1`                   | deploy / update-secrets         | base64 de 32 bytes — `openssl rand -base64 32` |
+| `VALKEY_PASSWORD`                 | (no se usa; el deployment monta `valkey-auth` directo) | dejar vacío o quitar |
+| `ADMIN_PASSWORD_PLAIN`            | rotate-admin-password           | password en plano para el admin |
+| `AZURE_STORAGE_CONNECTION_STRING` | deploy / update-secrets (legacy) | solo necesario mientras seedeen proyectos vía `seed-from-env` |
+| `DEFAULT_CONTAINER`               | deploy / update-secrets (legacy) | idem |
+| `PROJECT_VELVET`, `PROJECT_PIXEL_*`, ... | deploy / update-secrets (legacy) | un secret por proyecto legacy |
+| `TLS_*`                           | (legacy del setup viejo)        | si ya no se usan, eliminar |
+
+**Variables** (texto plano, visibles):
+
+| Nombre                | Quién lo usa                    | Valor típico |
+|-----------------------|---------------------------------|--------------|
+| `VALKEY_SENTINEL_ADDR`| deploy / update-secrets         | `valkey.data.svc.cluster.local:26379` |
+| `VALKEY_MASTER_NAME`  | deploy / update-secrets         | `myprimary` (depende del chart de Valkey) |
+| `ADMIN_USERNAME`      | deploy / update-secrets         | `admin` (default si no se setea) |
 
 ### Acceso a la UI admin desde browser
 
