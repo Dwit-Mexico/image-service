@@ -56,6 +56,8 @@ rand = "0.8"
 moka = { version = "0.12", features = ["future", "sync"] }
 # Para max-age de cookies (axum_extra::extract::cookie usa la crate `time`)
 time = "0.3"
+# Archivos temporales para el pipeline ffmpeg (auto-cleanup al drop)
+tempfile = "3"
 # Valkey/Redis client + Sentinel + pub/sub para invalidación distribuida
 redis = { version = "0.27", default-features = false, features = ["tokio-rustls-comp", "sentinel"] }
 urlencoding = "2"

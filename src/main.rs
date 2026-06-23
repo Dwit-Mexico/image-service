@@ -12,7 +12,10 @@ use image_service::{
     config::AppState,
     crypto::Kek,
     db,
-    handlers::{batch::batch_upload_handler, health::health_handler, upload::upload_handler},
+    handlers::{
+        audio::upload_audio_handler, batch::batch_upload_handler, health::health_handler,
+        upload::upload_handler, video::upload_video_handler,
+    },
     middleware::auth_middleware,
     projects::{invalidator, ProjectResolver},
 };
@@ -53,16 +56,25 @@ async fn main() {
         admin: admin_state,
     };
 
-    const MAX_BODY: usize = 30 * 1024 * 1024;
+    // Body limits per endpoint:
+    //   - images / batch / audio: 30 MB  (images small, audio ≤3 min input)
+    //   - video: 300 MB                  (input pre-compression can be hefty)
+    const MAX_BODY_DEFAULT: usize = 30 * 1024 * 1024;
+    const MAX_BODY_VIDEO: usize = 300 * 1024 * 1024;
 
-    let protected = Router::new()
+    let image_and_audio = Router::new()
         .route("/upload", post(upload_handler))
         .route("/upload/batch", post(batch_upload_handler))
-        .layer(DefaultBodyLimit::max(MAX_BODY))
-        .layer(axum_middleware::from_fn_with_state(
-            state.clone(),
-            auth_middleware,
-        ));
+        .route("/upload/audio", post(upload_audio_handler))
+        .layer(DefaultBodyLimit::max(MAX_BODY_DEFAULT));
+
+    let video = Router::new()
+        .route("/upload/video", post(upload_video_handler))
+        .layer(DefaultBodyLimit::max(MAX_BODY_VIDEO));
+
+    let protected = image_and_audio.merge(video).layer(
+        axum_middleware::from_fn_with_state(state.clone(), auth_middleware),
+    );
 
     let admin_router = if state.admin.is_some() {
         Some(admin::router(state.clone()))

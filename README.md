@@ -20,11 +20,13 @@ cliente ──(X-Client-Cert-CN + X-API-Key)──> Gateway API ──> image-se
 
 ### Públicos (auth por cert CN + API key)
 
-| Método | Ruta             | Descripción                          |
-|--------|------------------|--------------------------------------|
-| GET    | `/health`        | Healthcheck (`{"status":"ok"}`)      |
-| POST   | `/upload`        | Sube una sola imagen (multipart)     |
-| POST   | `/upload/batch`  | Sube varias imágenes en paralelo     |
+| Método | Ruta             | Body máx | Descripción                                              |
+|--------|------------------|----------|----------------------------------------------------------|
+| GET    | `/health`        | —        | Healthcheck (`{"status":"ok"}`)                          |
+| POST   | `/upload`        | 30 MB    | Sube una imagen (multipart)                              |
+| POST   | `/upload/batch`  | 30 MB    | Sube varias imágenes en paralelo                         |
+| POST   | `/upload/audio`  | 30 MB    | Sube audio (transcoded a MP3 128k, máx 3 min)            |
+| POST   | `/upload/video`  | 300 MB   | Sube video (H.264 + AAC, 720p, máx 2 min) + thumbnail    |
 
 ### Admin UI (auth por session cookie, montado bajo `/admin`)
 
@@ -75,6 +77,67 @@ Respuesta:
 ### `POST /upload/batch`
 
 Mismo formato, acepta múltiples campos `file`. Las `options` son compartidas para todo el batch. Procesa en paralelo y devuelve un resultado por imagen indexado por orden de envío.
+
+### `POST /upload/video`
+
+Multipart con `file` (video) y `options` opcional:
+
+```json
+{
+  "max_height": 720,
+  "crf": 24,
+  "audio_bitrate_k": 128,
+  "max_duration_seconds": 120,
+  "folder": "tickets/123"
+}
+```
+
+Defaults: `max_height=720`, `crf=24`, `audio_bitrate_k=128`, `max_duration_seconds=120`. Si el video excede la duración → `400 Bad Request`.
+
+Procesa con `ffmpeg`: transcoda a MP4 H.264 + AAC, escala a `max_height` preservando aspect ratio, y extrae un thumbnail WebP del segundo 1.
+
+Respuesta — **ambos `id` están pensados para almacenarse del lado del cliente** para reconstruir GetObject:
+
+```json
+{
+  "id": "tickets/123/<uuid>.mp4",
+  "url": "https://<host>/<container>/<id>",
+  "thumbnail_id": "tickets/123/<uuid>-thumb.webp",
+  "thumbnail_url": "https://<host>/<container>/<thumbnail_id>",
+  "original_bytes": 25600000,
+  "compressed_bytes": 4800000,
+  "thumbnail_bytes": 18432,
+  "duration_seconds": 47.3,
+  "format": "mp4"
+}
+```
+
+### `POST /upload/audio`
+
+Multipart con `file` (audio) y `options` opcional:
+
+```json
+{
+  "bitrate_k": 128,
+  "max_duration_seconds": 180,
+  "folder": "voice-notes/u42"
+}
+```
+
+Defaults: `bitrate_k=128`, `max_duration_seconds=180`. Transcoda a MP3 (libmp3lame).
+
+Respuesta:
+
+```json
+{
+  "id": "voice-notes/u42/<uuid>.mp3",
+  "url": "https://<host>/<container>/<id>",
+  "original_bytes": 4096000,
+  "compressed_bytes": 2880000,
+  "duration_seconds": 174.2,
+  "format": "mp3"
+}
+```
 
 ## Configuración
 
@@ -221,6 +284,7 @@ curl -X POST http://localhost:8080/upload \
 - **Valkey** ya desplegada (ver `infra-valkey-k8s`). NetworkPolicy permite tráfico desde `production`.
 - Secret `valkey-auth` **replicado al namespace `production`** (el playbook de Valkey lo hace si `apps_namespace: production`).
 - **Cluster k3s** con Gateway API. El listener compartido (`gateway-api/https`) acepta routes del namespace `default`.
+- **`ffmpeg`** instalado en la imagen runner (Dockerfile lo agrega vía `apt`). Necesario para `/upload/video` y `/upload/audio`.
 
 ### Manifests (`k8s/`)
 
@@ -308,9 +372,13 @@ src/
 ├── handlers/
 │   ├── health.rs
 │   ├── upload.rs        # /upload, construye storage por request
-│   └── batch.rs         # /upload/batch
+│   ├── batch.rs         # /upload/batch
+│   ├── video.rs         # /upload/video — transcode + thumbnail
+│   └── audio.rs         # /upload/audio — transcode
 ├── processing/
-│   └── image.rs         # decode + resize + encode (webp/jpeg/png)
+│   ├── image.rs         # decode + resize + encode (webp/jpeg/png)
+│   ├── video.rs         # ffmpeg subprocess: transcode MP4 H.264/AAC + thumb WebP
+│   └── audio.rs         # ffmpeg subprocess: transcode MP3
 ├── projects/
 │   ├── api_key.rs       # HMAC-SHA256 + salt, generate/import/verify
 │   ├── storage_config.rs# enum Azure/S3 + serde + zeroize + redacción

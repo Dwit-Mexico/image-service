@@ -32,7 +32,7 @@ RUN find src -name '*.rs' -exec touch {} + && cargo build --release
 FROM debian:trixie-slim AS runner
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libwebp7 ca-certificates \
+    && apt-get install -y --no-install-recommends libwebp7 ca-certificates ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
