@@ -1,64 +1,90 @@
 {% extends "admin/base.html" %}
-{% block title %}dashboard — image-service admin{% endblock %}
+{% block title %}dashboard — media-service admin{% endblock %}
 
 {% block nav %}
-<nav>
-  <strong>image-service admin</strong>
-  <div>
-    <span>👤 {{ user }}</span>
-    <form method="post" action="/admin/logout" style="display:inline">
-      <button type="submit" class="secondary" style="padding: 0.25rem 0.75rem">logout</button>
+<nav class="topbar">
+  <div class="brand"><span class="cursor"></span><a href="/admin">media-service<span class="dim">/admin</span></a></div>
+  <div class="topbar-right">
+    <span class="user"><span class="dot"></span><span class="name">{{ user }}</span></span>
+    <form method="post" action="/admin/logout">
+      <button type="submit" class="btn btn-ghost">logout</button>
     </form>
   </div>
 </nav>
 {% endblock %}
 
 {% block content %}
-{% if let Some(msg) = flash %}
-  <div class="flash ok">{{ msg }}</div>
-{% endif %}
+<main class="container">
+  {% if let Some(msg) = flash %}
+    <div class="flash ok">{{ msg }}</div>
+  {% endif %}
 
-<div style="display: flex; justify-content: space-between; align-items: center; margin: 1rem 0">
-  <h2 style="margin: 0">proyectos</h2>
-  <div>
-    <a href="/admin/projects/new?backend=azure" role="button">+ azure</a>
-    <a href="/admin/projects/new?backend=s3" role="button" class="secondary">+ s3</a>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:20px;gap:16px;flex-wrap:wrap">
+    <div>
+      <h1>proyectos</h1>
+      <div class="subtitle">gestión de storage &amp; API keys · media (audio · video · imágenes · archivos)</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="search">
+        <span class="ic">⌕</span>
+        <input type="text" id="filter" placeholder="filter…" oninput="filterRows(this.value)" autocomplete="off">
+      </div>
+      <a href="/admin/projects/new?backend=azure" class="btn btn-primary">+ azure</a>
+      <a href="/admin/projects/new?backend=s3" class="btn btn-ghost">+ s3</a>
+    </div>
   </div>
-</div>
 
-<table>
-  <thead>
-    <tr>
-      <th>name</th>
-      <th>cert_cn</th>
-      <th>prefix</th>
-      <th>backend</th>
-      <th>container</th>
-      <th>last used</th>
-      <th>status</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for p in projects %}
-    <tr>
-      <td><a href="/admin/projects/{{ p.cert_cn }}">{{ p.name }}</a></td>
-      <td class="mono">{{ p.cert_cn }}</td>
-      <td class="mono">{{ p.api_key_prefix }}</td>
-      <td>{{ p.backend }}</td>
-      <td>{{ p.container }}</td>
-      <td>{{ p.last_used }}</td>
-      <td>
-        {% if p.status == "active" %}
-          <span class="pill active">active</span>
-        {% else %}
-          <span class="pill revoked">revoked</span>
+  <div class="panel">
+    <table>
+      <thead>
+        <tr>
+          <th>name</th>
+          <th>cert_cn</th>
+          <th>prefix</th>
+          <th>backend</th>
+          <th>container</th>
+          <th class="nowrap">last used</th>
+          <th>status</th>
+        </tr>
+      </thead>
+      <tbody id="rows">
+        {% for p in projects %}
+        <tr data-name="{{ p.name }} {{ p.cert_cn }}">
+          <td><a href="/admin/projects/{{ p.cert_cn }}" class="link">{{ p.name }}</a></td>
+          <td class="mono nowrap">{{ p.cert_cn }}</td>
+          <td class="mono dim nowrap">{{ p.api_key_prefix }}</td>
+          <td>
+            {% if p.backend == "azure" %}
+              <span class="tag tag-azure">azure</span>
+            {% else %}
+              <span class="tag tag-s3">{{ p.backend }}</span>
+            {% endif %}
+          </td>
+          <td class="mono nowrap">{{ p.container }}</td>
+          <td class="mono dim nowrap">{{ p.last_used }}</td>
+          <td>
+            {% if p.status == "active" %}
+              <span class="pill active"><span class="dot"></span>active</span>
+            {% else %}
+              <span class="pill revoked"><span class="dot"></span>revoked</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% if projects.is_empty() %}
+        <tr><td colspan="7" class="empty">— aún no hay proyectos —</td></tr>
         {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-    {% if projects.is_empty() %}
-    <tr><td colspan="7"><em>aún no hay proyectos</em></td></tr>
-    {% endif %}
-  </tbody>
-</table>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+  function filterRows(q){
+    q = q.trim().toLowerCase();
+    document.querySelectorAll('#rows tr[data-name]').forEach(function(tr){
+      tr.style.display = tr.dataset.name.toLowerCase().includes(q) ? '' : 'none';
+    });
+  }
+</script>
 {% endblock %}

@@ -1,29 +1,37 @@
 {% extends "admin/base.html" %}
-{% block title %}proyecto creado — image-service admin{% endblock %}
+{% block title %}proyecto creado — media-service admin{% endblock %}
 
 {% block nav %}
-<nav>
-  <strong><a href="/admin">image-service admin</a></strong>
-  <div>
-    <span>👤 {{ user }}</span>
-    <form method="post" action="/admin/logout" style="display:inline">
-      <button type="submit" class="secondary" style="padding: 0.25rem 0.75rem">logout</button>
+<nav class="topbar">
+  <div class="brand"><span class="cursor"></span><a href="/admin">media-service<span class="dim">/admin</span></a></div>
+  <div class="topbar-right">
+    <span class="user"><span class="dot"></span><span class="name">{{ user }}</span></span>
+    <form method="post" action="/admin/logout">
+      <button type="submit" class="btn btn-ghost">logout</button>
     </form>
   </div>
 </nav>
 {% endblock %}
 
 {% block content %}
-<h2>proyecto creado ✓</h2>
+<main class="container narrow">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:22px">
+    <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:rgba(95,211,168,.15);color:var(--accent);font:600 14px var(--mono)">✓</span>
+    <h1 class="sm">proyecto creado</h1>
+  </div>
 
-<div class="key-display">
-  <strong>API key generada — guárdala AHORA, no se puede recuperar:</strong>
-  <p><code>{{ plaintext_key }}</code></p>
-  <p>Dale esta key al cliente. Tendrá que mandarla en el header <code>X-API-Key</code> en cada request, junto con <code>X-Client-Cert-CN: {{ cert_cn }}</code> (vía mTLS o header directo).</p>
-</div>
+  <div class="key-box">
+    <div class="warn">⚠ guárdala AHORA — no se puede recuperar</div>
+    <div class="key-row">
+      <code>{{ plaintext_key }}</code>
+      <button type="button" class="btn-copy" onclick="navigator.clipboard.writeText('{{ plaintext_key }}');this.textContent='copied ✓'">copy</button>
+    </div>
+    <p>Dale esta key al cliente. La enviará en el header <code class="inl">X-API-Key</code> en cada request, junto con <code class="inl">X-Client-Cert-CN: {{ cert_cn }}</code> (vía mTLS o header directo).</p>
+  </div>
 
-<p>
-  <a href="/admin/projects/{{ cert_cn }}" role="button">ver proyecto</a>
-  <a href="/admin" role="button" class="secondary">volver al dashboard</a>
-</p>
+  <div class="actions">
+    <a href="/admin/projects/{{ cert_cn }}" class="btn btn-primary btn-lg">ver proyecto →</a>
+    <a href="/admin" class="btn btn-ghost btn-lg">volver al dashboard</a>
+  </div>
+</main>
 {% endblock %}

@@ -1,47 +1,90 @@
 {% extends "admin/base.html" %}
-{% block title %}crear proyecto — image-service admin{% endblock %}
+{% block title %}crear proyecto — media-service admin{% endblock %}
 
 {% block nav %}
-<nav>
-  <strong><a href="/admin">image-service admin</a></strong>
-  <div>
-    <span>👤 {{ user }}</span>
-    <form method="post" action="/admin/logout" style="display:inline">
-      <button type="submit" class="secondary" style="padding: 0.25rem 0.75rem">logout</button>
+<nav class="topbar">
+  <div class="brand"><span class="cursor"></span><a href="/admin">media-service<span class="dim">/admin</span></a></div>
+  <div class="topbar-right">
+    <span class="user"><span class="dot"></span><span class="name">{{ user }}</span></span>
+    <form method="post" action="/admin/logout">
+      <button type="submit" class="btn btn-ghost">logout</button>
     </form>
   </div>
 </nav>
 {% endblock %}
 
 {% block content %}
-<h2>nuevo proyecto ({{ backend }})</h2>
+<main class="container narrow">
+  <div class="crumb"><a href="/admin">← proyectos</a></div>
+  <h1 class="sm">nuevo proyecto</h1>
 
-{% if let Some(err) = error %}
-  <div class="flash err">{{ err }}</div>
-{% endif %}
-
-<form method="post" action="/admin/projects">
-  <input type="hidden" name="csrf" value="{{ csrf_token }}">
-  <input type="hidden" name="backend" value="{{ backend }}">
-
-  <label>name (etiqueta human-readable)<input type="text" name="name" required></label>
-  <label>cert_cn (debe coincidir con el CN del cert mTLS del cliente)<input type="text" name="cert_cn" required></label>
-
-  {% if backend == "azure" %}
-  <label>
-    Azure connection string
-    <textarea name="connection_string" rows="4" required placeholder="DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net"></textarea>
-  </label>
-  <label>default container (opcional)<input type="text" name="default_container"></label>
-  {% else %}
-  <label>access_key_id<input type="text" name="access_key_id" required></label>
-  <label>secret_access_key<input type="password" name="secret_access_key" required></label>
-  <label>region<input type="text" name="region" required placeholder="us-east-1"></label>
-  <label>bucket<input type="text" name="bucket" required></label>
-  <label>endpoint (opcional, para MinIO/R2)<input type="text" name="endpoint" placeholder="https://...r2.cloudflarestorage.com"></label>
+  {% if let Some(err) = error %}
+    <div class="flash err" style="margin-top:18px">{{ err }}</div>
   {% endif %}
 
-  <button type="submit">crear y generar API key</button>
-  <a href="/admin" role="button" class="secondary">cancelar</a>
-</form>
+  <div class="seg-wrap" style="margin-top:22px">
+    <span class="seg-label">BACKEND</span>
+    <div class="seg">
+      <a href="/admin/projects/new?backend=azure" class="{% if backend == "azure" %}on{% endif %}">azure</a>
+      <a href="/admin/projects/new?backend=s3" class="{% if backend == "s3" %}on{% endif %}">s3</a>
+    </div>
+  </div>
+
+  <form method="post" action="/admin/projects">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="backend" value="{{ backend }}">
+
+    <div class="card">
+      <label class="field">
+        <span class="lab">name</span>
+        <span class="hint">etiqueta human-readable</span>
+        <input type="text" name="name" required>
+      </label>
+      <label class="field">
+        <span class="lab">cert_cn</span>
+        <span class="hint">debe coincidir con el CN del cert mTLS del cliente</span>
+        <input type="text" name="cert_cn" required>
+      </label>
+
+      {% if backend == "azure" %}
+      <label class="field">
+        <span class="lab">Azure connection string</span>
+        <textarea name="connection_string" rows="4" required placeholder="DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;EndpointSuffix=core.windows.net"></textarea>
+      </label>
+      <label class="field">
+        <span class="lab">default container <span style="color:var(--muted-2)">(opcional)</span></span>
+        <input type="text" name="default_container">
+      </label>
+      {% else %}
+      <label class="field">
+        <span class="lab">access_key_id</span>
+        <input type="text" name="access_key_id" required>
+      </label>
+      <label class="field">
+        <span class="lab">secret_access_key</span>
+        <input type="password" name="secret_access_key" required>
+      </label>
+      <div class="row">
+        <label class="field">
+          <span class="lab">region</span>
+          <input type="text" name="region" required placeholder="us-east-1">
+        </label>
+        <label class="field">
+          <span class="lab">bucket</span>
+          <input type="text" name="bucket" required>
+        </label>
+      </div>
+      <label class="field">
+        <span class="lab">endpoint <span style="color:var(--muted-2)">(opcional, para MinIO/R2)</span></span>
+        <input type="text" name="endpoint" placeholder="https://...r2.cloudflarestorage.com">
+      </label>
+      {% endif %}
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn btn-primary btn-lg">crear y generar API key →</button>
+      <a href="/admin" class="btn btn-ghost btn-lg">cancelar</a>
+    </div>
+  </form>
+</main>
 {% endblock %}

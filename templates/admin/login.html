@@ -1,22 +1,28 @@
 {% extends "admin/base.html" %}
-{% block title %}login — image-service admin{% endblock %}
+{% block title %}login — media-service admin{% endblock %}
 
 {% block content %}
-<article style="max-width: 420px; margin: 4rem auto;">
-  <header><strong>image-service admin</strong></header>
-  {% if let Some(err) = error %}
-    <div class="flash err">{{ err }}</div>
-  {% endif %}
-  <form method="post" action="/admin/login">
-    <label>
-      usuario
-      <input type="text" name="username" autocomplete="username" required>
-    </label>
-    <label>
-      password
-      <input type="password" name="password" autocomplete="current-password" required>
-    </label>
-    <button type="submit">entrar</button>
-  </form>
-</article>
+<div class="auth">
+  <div class="auth-inner">
+    <div class="auth-brand"><span class="cursor"></span>media-service</div>
+    <div class="card">
+      <span class="auth-note">// admin login</span>
+      {% if let Some(err) = error %}
+        <div class="flash err">{{ err }}</div>
+      {% endif %}
+      <form method="post" action="/admin/login">
+        <label class="field">
+          <span class="lab">USUARIO</span>
+          <input type="text" name="username" autocomplete="username" placeholder="admin" required>
+        </label>
+        <label class="field">
+          <span class="lab">PASSWORD</span>
+          <input type="password" name="password" autocomplete="current-password" placeholder="••••••••" required>
+        </label>
+        <button type="submit" class="btn btn-primary btn-block">entrar →</button>
+      </form>
+    </div>
+    <div class="auth-foot">mTLS protected · internal only</div>
+  </div>
+</div>
 {% endblock %}
