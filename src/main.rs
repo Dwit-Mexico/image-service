@@ -13,8 +13,8 @@ use image_service::{
     crypto::Kek,
     db,
     handlers::{
-        audio::upload_audio_handler, batch::batch_upload_handler, health::health_handler,
-        upload::upload_handler, video::upload_video_handler,
+        audio::upload_audio_handler, batch::batch_upload_handler, file::upload_file_handler,
+        health::health_handler, upload::upload_handler, video::upload_video_handler,
     },
     middleware::auth_middleware,
     projects::{invalidator, ProjectResolver},
@@ -66,15 +66,19 @@ async fn main() {
         .route("/upload", post(upload_handler))
         .route("/upload/batch", post(batch_upload_handler))
         .route("/upload/audio", post(upload_audio_handler))
+        .route("/upload/file", post(upload_file_handler))
         .layer(DefaultBodyLimit::max(MAX_BODY_DEFAULT));
 
     let video = Router::new()
         .route("/upload/video", post(upload_video_handler))
         .layer(DefaultBodyLimit::max(MAX_BODY_VIDEO));
 
-    let protected = image_and_audio.merge(video).layer(
-        axum_middleware::from_fn_with_state(state.clone(), auth_middleware),
-    );
+    let protected = image_and_audio
+        .merge(video)
+        .layer(axum_middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
 
     let admin_router = if state.admin.is_some() {
         Some(admin::router(state.clone()))
@@ -93,7 +97,10 @@ async fn main() {
     let addr = std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".into());
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     tracing::info!("listening on {addr}");
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-        .await
-        .unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }

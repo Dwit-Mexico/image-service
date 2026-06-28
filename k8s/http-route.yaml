@@ -16,6 +16,12 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      # El default de Envoy Gateway (route timeout 15s) cortaba /upload/video
+      # durante el transcode (504). Subimos el timeout para cubrir upload+ffmpeg
+      # de videos pesados (hasta 300MB / 120s). request >= backendRequest.
+      timeouts:
+        request: "600s"
+        backendRequest: "600s"
       backendRefs:
         - name: image-service
           namespace: production
