@@ -1,6 +1,6 @@
-# Endpoints de media (video y audio)
+# Endpoints de media (video, audio, file)
 
-Spec de uso para `POST /upload/video` y `POST /upload/audio`. Comparten auth, storage backend y modelo de proyecto con los endpoints de imagen — sin impacto en `/upload` o `/upload/batch`.
+Spec de uso para `POST /upload/video`, `POST /upload/audio` y `POST /upload/file`. Comparten auth, storage backend y modelo de proyecto con los endpoints de imagen — sin impacto en `/upload` o `/upload/batch`.
 
 ## Auth (igual que image)
 
@@ -167,6 +167,81 @@ curl -X POST https://image-service.dwitmexico.com/upload/audio \
 
 ---
 
+## `POST /upload/file`
+
+Passthrough crudo — **no transcodea, no recomprime**. Guarda el byte stream íntegro. Pensado para documentos firmados (PDF) donde alterar un solo byte invalida la firma, o para imágenes que ya vienen optimizadas y no quieres re-encodear.
+
+### Request
+
+Multipart:
+
+| Campo     | Requerido | Tipo               | Descripción |
+|-----------|-----------|--------------------|-------------|
+| `file`    | sí        | bytes del archivo  | Su `filename` y `Content-Type` se usan para detectar el tipo |
+| `options` | no        | JSON string        | `{ "folder": "..." }` opcional |
+
+**Body máximo: 30 MB.**
+
+### Allowlist de tipos
+
+Solo se aceptan estos (por extensión del filename o por MIME declarado):
+
+| Extensión | MIME              |
+|-----------|-------------------|
+| `pdf`     | `application/pdf` |
+| `png`     | `image/png`       |
+| `jpg/jpeg`| `image/jpeg`      |
+| `webp`    | `image/webp`      |
+
+Cualquier otro tipo → `400 Bad Request: "tipo de archivo no permitido (pdf, png, jpg, webp)"`.
+
+> **Por qué tan corta la lista**: HTML/SVG/SWF/etc. pueden contener scripts, y si el container de destino es público (o accesible directo por URL) se vuelven vector XSS. Si necesitas otro tipo seguro, agrégalo en `src/handlers/file.rs::resolve_type`.
+
+### Procesamiento
+
+1. Detecta tipo: primero extensión del filename, fallback al `Content-Type` declarado en el multipart.
+2. Valida contra allowlist.
+3. Sube bytes íntegros al `default_container` del proyecto (fallback `"files"` si no está definido).
+
+**No hay validación de contenido** — no se parsea el PDF ni se inspeccionan los píxeles. Confías en el cliente sobre lo que sube.
+
+### Response (200 OK)
+
+```json
+{
+  "id": "foundations/huellas/docs/<uuid>.pdf",
+  "url": "https://<host>/<container>/<id>",
+  "bytes": 184320,
+  "content_type": "application/pdf",
+  "format": "pdf"
+}
+```
+
+`id` = Key real en S3/Azure, mismo invariante. Note que **no hay `original_bytes`/`compressed_bytes`** — el archivo no se modifica, así que solo `bytes` (= tamaño original = tamaño almacenado).
+
+### Errores
+
+| Status | Body                                                                | Causa |
+|--------|---------------------------------------------------------------------|-------|
+| 400    | `{"error":"campo 'file' requerido"}`                                | Multipart sin campo `file` |
+| 400    | `{"error":"archivo vacío"}`                                          | Body de 0 bytes |
+| 400    | `{"error":"tipo de archivo no permitido (pdf, png, jpg, webp)"}`     | Ext/MIME fuera de la allowlist |
+| 401    | auth                                                                | Mismo que video/audio |
+| 413    | (tower)                                                             | Body > 30 MB |
+| 500    | `{"error":"build storage: ..."}`                                    | Misconfig proyecto |
+
+### Ejemplo curl
+
+```bash
+curl -X POST https://image-service.dwitmexico.com/upload/file \
+  -H "X-Client-Cert-CN: project-velvet" \
+  -H "X-API-Key: sk_live_..." \
+  -F "file=@acta.pdf" \
+  -F 'options={"folder":"foundations/huellas/docs"}'
+```
+
+---
+
 ## Consideraciones para el cliente
 
 ### Qué almacenar en tu DB
@@ -186,6 +261,14 @@ Para audio:
 audio_key       = response.id
 duration        = response.duration_seconds
 size_bytes      = response.compressed_bytes
+```
+
+Para file (PDF/imagen passthrough):
+
+```
+file_key        = response.id
+size_bytes      = response.bytes
+content_type    = response.content_type
 ```
 
 **No guardes `url`** — es derivable y puede cambiar si rotas el storage backend (AWS → R2, p.ej.). La Key sí es estable.
@@ -222,12 +305,13 @@ Si necesitas un container distinto para videos/audios, configúralo en el proyec
 
 ## Restricciones del servicio
 
-| Aspecto | Video | Audio |
-|---------|-------|-------|
-| Duración máxima | 120s (2 min) | 180s (3 min) |
-| Body máximo | 300 MB | 30 MB |
-| Output codec | H.264 (libx264) + AAC | MP3 (libmp3lame) |
-| Output container | MP4 (`+faststart`) | MP3 |
-| Resolución | escala a 720p si excede | — |
-| Thumbnail | sí (WebP del seg. 1) | no |
-| Formatos input | cualquiera que ffmpeg decodifique | cualquiera que ffmpeg decodifique |
+| Aspecto | Video | Audio | File |
+|---------|-------|-------|------|
+| Duración máxima | 120s (2 min) | 180s (3 min) | n/a |
+| Body máximo | 300 MB | 30 MB | 30 MB |
+| Output codec | H.264 (libx264) + AAC | MP3 (libmp3lame) | passthrough |
+| Output container | MP4 (`+faststart`) | MP3 | original |
+| Resolución | escala a 720p si excede | — | original |
+| Thumbnail | sí (WebP del seg. 1) | no | no |
+| Formatos input | cualquiera que ffmpeg decodifique | cualquiera que ffmpeg decodifique | pdf, png, jpg, webp |
+| Modifica el archivo | sí (transcoda) | sí (transcoda) | **no** |

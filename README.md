@@ -27,6 +27,7 @@ cliente ──(X-Client-Cert-CN + X-API-Key)──> Gateway API ──> image-se
 | POST   | `/upload/batch`  | 30 MB    | Sube varias imágenes en paralelo                         |
 | POST   | `/upload/audio`  | 30 MB    | Sube audio (transcoded a MP3 128k, máx 3 min)            |
 | POST   | `/upload/video`  | 300 MB   | Sube video (H.264 + AAC, 720p, máx 2 min) + thumbnail    |
+| POST   | `/upload/file`   | 30 MB    | Sube archivo crudo (pdf/png/jpg/webp), sin transcodear    |
 
 ### Admin UI (auth por session cookie, montado bajo `/admin`)
 
@@ -374,7 +375,8 @@ src/
 │   ├── upload.rs        # /upload, construye storage por request
 │   ├── batch.rs         # /upload/batch
 │   ├── video.rs         # /upload/video — transcode + thumbnail
-│   └── audio.rs         # /upload/audio — transcode
+│   ├── audio.rs         # /upload/audio — transcode
+│   └── file.rs          # /upload/file — passthrough (PDF/imágenes), allowlist
 ├── processing/
 │   ├── image.rs         # decode + resize + encode (webp/jpeg/png)
 │   ├── video.rs         # ffmpeg subprocess: transcode MP4 H.264/AAC + thumb WebP
