@@ -50,10 +50,16 @@ pub async fn process_audio(raw: &[u8], opts: &AudioOptions) -> Result<AudioResul
         .unwrap_or(DEFAULT_MAX_DURATION_SECS);
 
     let input = write_temp("audio-in", raw)?;
-    let duration = ffprobe_duration(input.path().to_str().ok_or_else(|| {
+    let path = input.path().to_str().ok_or_else(|| {
         AppError::Processing("ruta temporal contiene caracteres inválidos".into())
-    })?)
-    .await?;
+    })?;
+    // ffprobe `format=duration` viene vacío/`N/A` en el WebM/Opus que graba el
+    // MediaRecorder del navegador (grabación en vivo, sin duración en el header).
+    // En ese caso medimos decodificando el archivo completo.
+    let duration = match ffprobe_duration(path).await {
+        Ok(d) if d.is_finite() && d > 0.0 => d,
+        _ => decode_duration(path).await?,
+    };
     if duration > max_duration_s {
         return Err(AppError::BadRequest(format!(
             "audio dura {duration:.1}s, máximo permitido {max_duration_s:.0}s"
@@ -113,6 +119,53 @@ async fn ffprobe_duration(path: &str) -> Result<f32, AppError> {
     text.trim()
         .parse::<f32>()
         .map_err(|_| AppError::Processing(format!("ffprobe duration parse: {text:?}")))
+}
+
+/// Mide la duración decodificando el archivo completo con ffmpeg. Se usa como
+/// fallback cuando `ffprobe format=duration` no reporta duración (típico del
+/// WebM/Opus de MediaRecorder). `-progress pipe:1` emite `out_time_us=` (µs) en
+/// stdout; tomamos el último valor.
+async fn decode_duration(path: &str) -> Result<f32, AppError> {
+    let out = Command::new("ffmpeg")
+        .args([
+            "-v",
+            "error",
+            "-i",
+            path,
+            "-f",
+            "null",
+            "-progress",
+            "pipe:1",
+            "-",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .await
+        .map_err(|e| AppError::Processing(format!("ffmpeg spawn: {e}")))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(AppError::BadRequest(format!(
+            "ffmpeg no pudo decodificar el audio: {}",
+            stderr.lines().last().unwrap_or("error desconocido")
+        )));
+    }
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    // `out_time_us`/`out_time_ms` de ffmpeg vienen en microsegundos (el nombre
+    // `ms` es un histórico engañoso). Tomamos el último reportado.
+    let micros = stdout.lines().rev().find_map(|l| {
+        l.strip_prefix("out_time_us=")
+            .or_else(|| l.strip_prefix("out_time_ms="))
+            .and_then(|v| v.trim().parse::<f64>().ok())
+    });
+    if let Some(us) = micros {
+        if us > 0.0 {
+            return Ok((us / 1_000_000.0) as f32);
+        }
+    }
+    Err(AppError::Processing(
+        "no se pudo medir la duración del audio".into(),
+    ))
 }
 
 async fn run_ffmpeg(args: &[&str]) -> Result<(), AppError> {
