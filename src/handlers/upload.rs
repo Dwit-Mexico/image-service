@@ -47,7 +47,17 @@ pub async fn upload_handler(
                     .text()
                     .await
                     .map_err(|e| AppError::BadRequest(e.to_string()))?;
-                opts = serde_json::from_str(&text).unwrap_or(opts);
+                // Antes esto era `.unwrap_or(opts)`: un JSON que no
+                // deserializaba se descartaba entero y se seguía con los
+                // DEFAULTS, en silencio. Como todos los campos son `Option`,
+                // sólo lo disparaba un tipo equivocado —un `format` que no está
+                // en el enum, un `quality` como string— y entonces se perdía
+                // también el `container`, así que la imagen terminaba en el
+                // contenedor por default del proyecto y la URL que guarda el
+                // cliente apuntaba a otro lado. Fallar es mucho mejor que
+                // desviar.
+                opts = serde_json::from_str(&text)
+                    .map_err(|e| AppError::BadRequest(format!("campo 'options' inválido: {e}")))?;
             }
             _ => {}
         }
