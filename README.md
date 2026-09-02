@@ -56,13 +56,25 @@ Campos multipart:
 {
   "quality": 85,
   "max_width": 2048,
+  "max_height": 2048,
   "format": "webp",
   "container": "images",
   "folder": "users/123/avatars"
 }
 ```
 
-Defaults: `quality=85`, `max_width=2048`, `format=webp`, `container` = `default_container` del proyecto (o `images`), sin folder.
+Defaults: `quality=85`, `max_width=2048`, `max_height` sin tope, `format=webp`, `container` = `default_container` del proyecto (o `images`), sin folder.
+
+`max_width` y `max_height` forman una caja: la imagen se escala al mayor tamaño
+que quepa dentro preservando el aspect ratio. Dando sólo `max_width`, una foto
+vertical se acota únicamente de ancho (3000×4000 → 2048×2731); dando los dos,
+cabe entera (3000×4000 → 1536×2048). Por eso `max_height` es sin tope por
+default: quien ya mandaba sólo `max_width` no cambia de comportamiento.
+
+Si el JSON de `options` no deserializa —un `format` fuera del enum, un `quality`
+como string— la respuesta es **`400 Bad Request`**. No se cae a los defaults en
+silencio, porque eso perdía también el `container` y subía la imagen a otro
+lado.
 
 Respuesta:
 ```json
