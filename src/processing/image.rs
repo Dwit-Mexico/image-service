@@ -177,6 +177,29 @@ mod tests {
         assert_eq!((out.width(), out.height()), (512, 2048));
     }
 
+    /// Los de arriba prueban el helper. Éste prueba el camino real —decodificar,
+    /// redimensionar y encodear a webp, que es lo que corre en producción— para
+    /// fijar que `process_image` de verdad lee la opción nueva y no sólo que el
+    /// helper sabe usarla.
+    #[test]
+    fn process_image_respeta_la_caja() {
+        let mut raw = Vec::new();
+        img(600, 800)
+            .write_to(&mut Cursor::new(&mut raw), ImageFormat::Jpeg)
+            .expect("encodear el jpeg de prueba");
+
+        let opts = ProcessOptions {
+            max_width: Some(400),
+            max_height: Some(400),
+            ..ProcessOptions::default()
+        };
+        let (bytes, format) = process_image(&raw, &opts).expect("procesar");
+
+        assert!(matches!(format, OutputFormat::Webp));
+        let out = image::load_from_memory(&bytes).expect("decodificar la salida");
+        assert_eq!((out.width(), out.height()), (300, 400));
+    }
+
     #[test]
     fn el_default_no_pone_tope_de_alto() {
         let d = ProcessOptions::default();
